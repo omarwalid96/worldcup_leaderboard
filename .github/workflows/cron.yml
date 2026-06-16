@@ -1,0 +1,32 @@
+name: GroupStage cron
+
+# Vercel's Hobby plan only runs crons once/day, which is useless during live
+# matches. GitHub Actions (free) pings our cron endpoints every ~10 minutes so
+# scores sync, picks lock, matches grade, standings recompute, and lock
+# reminders fire on a useful cadence.
+#
+# Setup: add two repo secrets (Settings → Secrets and variables → Actions):
+#   APP_URL     = https://your-app.vercel.app
+#   CRON_SECRET = same value as the Vercel env var
+#
+# Note: GitHub schedules are best-effort and can lag a few minutes under load.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *" # every 10 minutes (UTC)
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync scores, lock, grade, recompute standings
+        run: |
+          curl -sS -m 60 -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/cron/sync" || echo "sync ping failed (will retry next tick)"
+      - name: Send lock reminders
+        run: |
+          curl -sS -m 30 -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/cron/notify" || echo "notify ping failed (will retry next tick)"

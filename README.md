@@ -65,15 +65,43 @@ See [`.env.example`](./.env.example) for the full list. The essentials:
 - **All times stored in UTC**, converted to the user's timezone only for display.
 - **RLS** restricts each user to editing only their own predictions/profile.
 
+## Deployment & cron
+
+Deployed on **Vercel** from this GitHub repo (auto-deploys on push to `main`).
+
+### Required Vercel env vars
+Set all of [`.env.example`](./.env.example) in **Vercel → Settings → Environment
+Variables**. Notably, use the **transaction pooler** `DATABASE_URL` (port `6543`)
+on Vercel (serverless), while local migrations use the **session pooler**
+(`5432`). Set `NEXT_PUBLIC_APP_URL` to your deployed URL.
+
+### Keeping scores live (important)
+Vercel's **Hobby plan only runs crons once per day**, which is useless during
+live matches. So the primary scheduler is a **GitHub Actions workflow**
+([`.github/workflows/cron.yml`](./.github/workflows/cron.yml)) that pings the
+cron endpoints every ~10 minutes. To enable it, add two **repo secrets**
+(Settings → Secrets and variables → Actions):
+
+- `APP_URL` = your Vercel URL
+- `CRON_SECRET` = same value as the Vercel `CRON_SECRET` env var
+
+The `vercel.json` daily cron remains as a backup. Both endpoints are protected
+by the `CRON_SECRET` bearer token. (Upgrade to Vercel Pro for native frequent
+crons instead, if preferred.)
+
+### Cron endpoints (all `Authorization: Bearer $CRON_SECRET`)
+- `POST /api/cron/sync` — sync scores/status, lock kicked-off picks, grade
+  finished matches, recompute standings, fire score-hit + rank-climb push.
+- `POST /api/cron/notify` — send "lock your pick" reminders (45–60 min pre-kickoff).
+- `POST /api/cron/grade?regrade=1` — re-grade everything (after a scoring change).
+
 ## Build plan
 
-1. ✅ **Scaffold** — Next 15 + Tailwind v4 + shadcn + Drizzle + Supabase, design system, landing page.
-2. ⏳ **Auth + profiles** — preset username/password users, profile page, RLS.
-3. **Data layer** — `FootballProvider` adapter, seed 2026 fixtures, match cards.
-4. **Predictions** — scoreline picks, server-enforced kickoff lock.
-5. **Cron pipeline** — poll, flip statuses, grade, compute standings.
-6. **Leaderboard** — animated ranked table, Realtime, podium, rank trends.
-7. **Gamification** — double-down, streaks, badges, confetti, profile chart.
-8. **Notifications** — PWA, web push, settings.
-9. **Leagues** — invite codes/links, multi-league.
-10. **Polish + ship** — installable PWA, states, a11y, deploy to Vercel.
+1. ✅ Scaffold · 2. ✅ Auth + profiles + RLS · 3. ✅ Data layer + fixtures ·
+4. ✅ Predictions + kickoff lock · 5. ✅ Cron pipeline (grade + standings) ·
+6. ✅ Animated leaderboard + Realtime · 7. ✅ Gamification (badges, confetti, chart) ·
+8. ✅ PWA + web push + settings · 9. ⏭️ Leagues (deferred) ·
+10. ✅ Polish + ship (states, a11y, GitHub Actions cron).
+
+Plus: near-live scores via worldcup26.ir (openfootball fallback); per-user pick
+history (`/u/[username]`); perf indexes.
