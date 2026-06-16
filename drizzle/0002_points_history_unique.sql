@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "points_history_user_matchday_unique" ON "points_history" USING btree ("user_id","matchday");

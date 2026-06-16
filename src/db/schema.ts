@@ -19,6 +19,7 @@ import {
   primaryKey,
   unique,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -201,7 +202,10 @@ export const pointsHistory = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("points_history_user_idx").on(t.userId)],
+  (t) => [
+    index("points_history_user_idx").on(t.userId),
+    uniqueIndex("points_history_user_matchday_unique").on(t.userId, t.matchday),
+  ],
 );
 
 // ── Relations ──────────────────────────────────────────────────────────────

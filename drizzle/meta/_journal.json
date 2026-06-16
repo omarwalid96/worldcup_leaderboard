@@ -8,6 +8,13 @@
       "when": 1781642483500,
       "tag": "0000_dazzling_speed",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781646394541,
+      "tag": "0001_breezy_bug",
+      "breakpoints": true
     }
   ]
 }
