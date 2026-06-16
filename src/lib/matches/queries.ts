@@ -17,15 +17,12 @@ export interface MatchWithPrediction extends Match {
 export async function getMatchesWithPredictions(
   userId: string,
 ): Promise<MatchWithPrediction[]> {
-  const rows = await db
-    .select()
-    .from(matches)
-    .orderBy(asc(matches.kickoffUtc));
-
-  const preds = await db
-    .select()
-    .from(predictions)
-    .where(eq(predictions.userId, userId));
+  // These two queries are independent (predictions are fetched by user_id,
+  // not by the match rows), so run them in parallel.
+  const [rows, preds] = await Promise.all([
+    db.select().from(matches).orderBy(asc(matches.kickoffUtc)),
+    db.select().from(predictions).where(eq(predictions.userId, userId)),
+  ]);
 
   const byMatch = new Map(preds.map((p) => [p.matchId, p]));
 

@@ -1,21 +1,24 @@
 import type { Metadata } from "next";
-import { Flame, Target, Trophy, Crosshair, Award, LineChart } from "lucide-react";
+import { Flame, Target, Trophy, Crosshair, Award, LineChart, History } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RankTrend } from "@/components/profile/rank-trend";
 import { PointsChart } from "@/components/profile/points-chart";
+import { PredictionHistory } from "@/components/profile/prediction-history";
 import { requireProfile } from "@/lib/auth/session";
 import { getProfileStats, getUserBadges, getPointsHistory } from "@/lib/profile/stats";
+import { getUserPredictionHistory } from "@/lib/predictions/history";
 
 export const metadata: Metadata = { title: "Profile" };
 
 export default async function ProfilePage() {
   const profile = await requireProfile();
-  const [stats, earnedBadges, pointsHistory] = await Promise.all([
+  const [stats, earnedBadges, pointsHistory, predictionHistory] = await Promise.all([
     getProfileStats(profile.id),
     getUserBadges(profile.id),
     getPointsHistory(profile.id),
+    getUserPredictionHistory(profile.id),
   ]);
 
   const initials = profile.displayName
@@ -120,6 +123,17 @@ export default async function ProfilePage() {
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Pick history */}
+      <Card className="border-border/60 bg-card/70">
+        <CardHeader className="flex-row items-center gap-2 space-y-0">
+          <History className="size-4 text-primary" />
+          <CardTitle className="text-base">My picks</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <PredictionHistory rows={predictionHistory} fallbackTz={profile.timezone} />
         </CardContent>
       </Card>
     </div>

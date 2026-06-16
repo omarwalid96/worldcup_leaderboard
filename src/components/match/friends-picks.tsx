@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Users, Zap } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -46,20 +47,25 @@ export function FriendsPicks({
                 isMe && "bg-gold/5",
               )}
             >
-              <Avatar className="size-7 border border-border/60">
-                {p.avatarUrl && <AvatarImage src={p.avatarUrl} alt={p.displayName} />}
-                <AvatarFallback className="bg-secondary text-[10px] font-semibold">
-                  {initials(p.displayName)}
-                </AvatarFallback>
-              </Avatar>
-              <span className="flex-1 truncate text-sm">
+              <Link href={`/u/${p.username}`} tabIndex={-1} aria-hidden>
+                <Avatar className="size-7 border border-border/60">
+                  {p.avatarUrl && <AvatarImage src={p.avatarUrl} alt={p.displayName} />}
+                  <AvatarFallback className="bg-secondary text-[10px] font-semibold">
+                    {initials(p.displayName)}
+                  </AvatarFallback>
+                </Avatar>
+              </Link>
+              <Link
+                href={`/u/${p.username}`}
+                className="flex-1 truncate text-sm hover:underline"
+              >
                 {p.displayName}
                 {isMe && (
                   <span className="ml-1.5 rounded bg-gold/20 px-1 py-0.5 text-[10px] font-bold uppercase text-gold">
                     You
                   </span>
                 )}
-              </span>
+              </Link>
               {p.isDoubleDown && <Zap className="size-3.5 text-gold" aria-label="Double down" />}
               <span className="font-numeric text-xl tabular-nums">
                 {p.homePick}–{p.awayPick}

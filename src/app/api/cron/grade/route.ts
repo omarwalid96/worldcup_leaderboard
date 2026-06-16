@@ -6,6 +6,7 @@ import {
   regradeAll,
 } from "@/lib/scoring/grade";
 import { lockKickedOffPredictions } from "@/lib/football/sync";
+import { sendGradingNotifications } from "@/lib/notifications/grading";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -24,11 +25,13 @@ async function handle(req: NextRequest) {
     const regrade = new URL(req.url).searchParams.get("regrade") === "1";
     if (regrade) {
       const grading = await regradeAll();
+      await sendGradingNotifications(grading.exactHitUserIds, grading.affectedUserIds);
       return NextResponse.json({ ok: true, regraded: true, grading });
     }
     const locked = await lockKickedOffPredictions();
     const grading = await gradeFinishedMatches();
     await snapshotPointsHistory();
+    await sendGradingNotifications(grading.exactHitUserIds, grading.affectedUserIds);
     return NextResponse.json({ ok: true, locked, grading });
   } catch (err) {
     console.error("[cron/grade] failed:", err);

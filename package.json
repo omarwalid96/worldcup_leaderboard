@@ -14,7 +14,8 @@
     "db:studio": "drizzle-kit studio",
     "db:migrate:all": "tsx --env-file=.env.local scripts/migrate.ts",
     "db:seed": "tsx --env-file=.env.local scripts/seed.ts",
-    "users:create": "tsx --env-file=.env.local scripts/create-users.ts"
+    "users:create": "tsx --env-file=.env.local scripts/create-users.ts",
+    "users:rename": "tsx --env-file=.env.local scripts/rename-user.ts"
   },
   "dependencies": {
     "@formkit/auto-animate": "^0.9.0",

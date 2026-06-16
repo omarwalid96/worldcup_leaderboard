@@ -140,6 +140,7 @@ export const predictions = pgTable(
     unique("predictions_user_match_unique").on(t.userId, t.matchId),
     index("predictions_match_idx").on(t.matchId),
     index("predictions_user_idx").on(t.userId),
+    index("predictions_user_points_idx").on(t.userId, t.pointsAwarded),
   ],
 );
 
@@ -162,7 +163,10 @@ export const standings = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.leagueId, t.userId] })],
+  (t) => [
+    primaryKey({ columns: [t.leagueId, t.userId] }),
+    index("standings_league_rank_idx").on(t.leagueId, t.rank),
+  ],
 );
 
 export const badges = pgTable("badges", {

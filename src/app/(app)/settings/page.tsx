@@ -1,21 +1,48 @@
 import type { Metadata } from "next";
-import { Settings as SettingsIcon } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { requireProfile } from "@/lib/auth/session";
+import { PushSettings } from "@/components/notifications/push-settings";
+import { env } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Settings" };
 
-export default function SettingsPage() {
+interface NotifPrefs {
+  lockReminder: boolean;
+  scoreHit: boolean;
+  rankClimb: boolean;
+}
+
+function parseNotifPrefs(raw: unknown): NotifPrefs {
+  const defaults: NotifPrefs = { lockReminder: true, scoreHit: true, rankClimb: true };
+  if (!raw || typeof raw !== "object") return defaults;
+  const r = raw as Record<string, unknown>;
+  return {
+    lockReminder: r.lockReminder !== false,
+    scoreHit: r.scoreHit !== false,
+    rankClimb: r.rankClimb !== false,
+  };
+}
+
+export default async function SettingsPage() {
+  const profile = await requireProfile();
+
+  const vapidPublicKey = env.vapidPublicKey ?? "";
+  const initialSubscribed = Boolean(profile.pushSubscription);
+  const initialPrefs = parseNotifPrefs(profile.notifPrefs);
+
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-      <Card className="border-dashed border-border/60 bg-card/40">
-        <CardContent className="flex flex-col items-center gap-2 py-16 text-center">
-          <SettingsIcon className="size-8 text-muted-foreground/60" />
-          <p className="text-sm text-muted-foreground">
-            Notification preferences arrive in Milestone 8.
-          </p>
-        </CardContent>
-      </Card>
+      <div>
+        <h1 className="font-display text-2xl tracking-tight">Settings</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Manage your GroupStage notification preferences.
+        </p>
+      </div>
+
+      <PushSettings
+        vapidPublicKey={vapidPublicKey}
+        initialSubscribed={initialSubscribed}
+        initialPrefs={initialPrefs}
+      />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { Brand } from "@/components/brand";
 import { BottomNav, SideNav } from "@/components/layout/app-nav";
 import { UserMenu } from "@/components/layout/user-menu";
 import { requireProfile } from "@/lib/auth/session";
+import { SwRegister } from "@/components/sw-register";
 
 export default async function AppLayout({
   children,
@@ -38,6 +39,7 @@ export default async function AppLayout({
       </div>
 
       <BottomNav />
+      <SwRegister />
     </div>
   );
 }

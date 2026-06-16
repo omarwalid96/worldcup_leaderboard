@@ -4,6 +4,7 @@ import {
   gradeFinishedMatches,
   snapshotPointsHistory,
 } from "@/lib/scoring/grade";
+import { sendGradingNotifications } from "@/lib/notifications/grading";
 
 export interface PipelineResult {
   ok: true;
@@ -30,6 +31,8 @@ export async function runPipeline(): Promise<PipelineResult> {
   const markedLive = await markInPlayLive();
   const grading = await gradeFinishedMatches();
   await snapshotPointsHistory();
+  // Fire push notifications after grading; failures must not break the pipeline.
+  await sendGradingNotifications(grading.exactHitUserIds, grading.affectedUserIds);
 
   return {
     ok: true,

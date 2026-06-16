@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { motion, AnimatePresence, LayoutGroup } from "motion/react";
 import { Crown, Medal, ArrowUp, ArrowDown, Minus, Flame, Target } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -104,27 +105,37 @@ export function LeaderboardTable({
               >
                 <RankBadge rank={row.rank} />
 
-                <Avatar className="size-9 shrink-0 border border-border/60">
-                  {row.avatarUrl && <AvatarImage src={row.avatarUrl} alt={row.displayName} />}
-                  <AvatarFallback
-                    className={cn(
-                      "text-xs font-semibold",
-                      row.rank === 1 ? "bg-gold/20 text-gold" : "bg-secondary text-foreground",
-                    )}
-                  >
-                    {initials(row.displayName)}
-                  </AvatarFallback>
-                </Avatar>
+                <Link
+                  href={`/u/${row.username}`}
+                  className="flex min-w-0 shrink-0 items-center gap-3"
+                  tabIndex={-1}
+                  aria-hidden
+                >
+                  <Avatar className="size-9 border border-border/60">
+                    {row.avatarUrl && <AvatarImage src={row.avatarUrl} alt={row.displayName} />}
+                    <AvatarFallback
+                      className={cn(
+                        "text-xs font-semibold",
+                        row.rank === 1 ? "bg-gold/20 text-gold" : "bg-secondary text-foreground",
+                      )}
+                    >
+                      {initials(row.displayName)}
+                    </AvatarFallback>
+                  </Avatar>
+                </Link>
 
                 <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="flex items-center gap-1.5 truncate text-sm font-semibold">
+                  <Link
+                    href={`/u/${row.username}`}
+                    className="flex items-center gap-1.5 truncate text-sm font-semibold hover:underline"
+                  >
                     {row.displayName}
                     {isMe && (
                       <span className="rounded bg-gold/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold">
                         You
                       </span>
                     )}
-                  </span>
+                  </Link>
                   <span className="flex items-center gap-2 text-xs text-muted-foreground">
                     {row.exactHits > 0 && (
                       <span className="inline-flex items-center gap-0.5">
