@@ -3,12 +3,15 @@ import type { Metadata } from "next";
 import { CalendarDays, Trophy, Target, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MatchCard } from "@/components/match/match-card";
 import { requireProfile } from "@/lib/auth/session";
+import { getUpcomingMatches } from "@/lib/matches/queries";
 
 export const metadata: Metadata = { title: "Home" };
 
 export default async function DashboardPage() {
   const profile = await requireProfile();
+  const upcoming = await getUpcomingMatches(profile.id, 4);
 
   return (
     <div className="flex flex-col gap-6">
@@ -58,15 +61,34 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      {/* Placeholder for the upcoming-matches strip (Milestone 3) */}
-      <Card className="border-dashed border-border/60 bg-card/40">
-        <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
-          <CalendarDays className="size-8 text-muted-foreground/60" />
-          <p className="text-sm text-muted-foreground">
-            Fixtures load here once the schedule is seeded.
-          </p>
-        </CardContent>
-      </Card>
+      {/* Next up */}
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-muted-foreground">Next up</h2>
+          <Link
+            href="/matches"
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            See all
+          </Link>
+        </div>
+        {upcoming.length ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {upcoming.map((m) => (
+              <MatchCard key={m.id} match={m} userTz={profile.timezone} />
+            ))}
+          </div>
+        ) : (
+          <Card className="border-dashed border-border/60 bg-card/40">
+            <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
+              <CalendarDays className="size-8 text-muted-foreground/60" />
+              <p className="text-sm text-muted-foreground">
+                No upcoming matches right now.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </section>
     </div>
   );
 }
