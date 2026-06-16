@@ -79,7 +79,7 @@ export default async function ProfilePage() {
                 <s.icon className={`size-4 ${s.tone}`} />
                 {"trend" in s ? s.trend : null}
               </div>
-              <div className="text-2xl font-bold tabular-nums">{s.value}</div>
+              <div className="font-numeric text-3xl leading-none">{s.value}</div>
               <div className="text-xs text-muted-foreground">{s.label}</div>
             </CardContent>
           </Card>

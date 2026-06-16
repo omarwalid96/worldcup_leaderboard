@@ -53,10 +53,10 @@ export default function LandingPage() {
             World Cup 2026 is LIVE · Jun 11 – Jul 19
           </div>
 
-          <h1 className="mt-6 max-w-3xl text-balance text-4xl font-bold leading-[1.05] tracking-tight sm:text-6xl">
+          <h1 className="font-display mt-6 max-w-3xl text-balance text-5xl leading-[0.92] sm:text-7xl">
             Out-predict your friends.
             <br />
-            <span className="text-primary">Own the table.</span>
+            <span className="text-gold-gradient">Own the table.</span>
           </h1>
 
           <p className="mt-5 max-w-xl text-pretty text-base text-muted-foreground sm:text-lg">
@@ -85,7 +85,7 @@ export default function LandingPage() {
               { k: "5 pts", v: "exact score" },
             ].map((s) => (
               <div key={s.v} className="rounded-xl border bg-card/40 py-4 backdrop-blur">
-                <dt className="text-2xl font-bold tabular-nums">{s.k}</dt>
+                <dt className="font-numeric text-4xl text-gold">{s.k}</dt>
                 <dd className="text-xs uppercase tracking-wide text-muted-foreground">
                   {s.v}
                 </dd>
@@ -124,7 +124,7 @@ export default function LandingPage() {
               { pts: "×2", label: "Double-down match", tone: "text-gold" },
             ].map((r) => (
               <div key={r.label} className="rounded-xl bg-background/40 p-4">
-                <div className={`text-2xl font-bold tabular-nums ${r.tone}`}>
+                <div className={`font-numeric text-4xl ${r.tone}`}>
                   {r.pts}
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">{r.label}</div>

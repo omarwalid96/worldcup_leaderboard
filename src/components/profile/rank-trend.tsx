@@ -36,7 +36,7 @@ export function RankTrend({
     <span
       className={cn(
         "inline-flex items-center gap-0.5 text-xs font-semibold tabular-nums",
-        climbed ? "text-primary" : "text-destructive",
+        climbed ? "text-success" : "text-destructive",
         className,
       )}
       aria-label={climbed ? `Up ${delta}` : `Down ${Math.abs(delta)}`}

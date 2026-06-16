@@ -36,7 +36,7 @@ function Stepper({
       >
         <Plus className="size-4" />
       </button>
-      <span className="w-12 text-center text-4xl font-bold tabular-nums" aria-live="polite">
+      <span className="font-numeric w-12 text-center text-5xl" aria-live="polite">
         {value}
       </span>
       <button

@@ -40,7 +40,7 @@ function TeamRow({
         </span>
       </div>
       {score != null && (
-        <span className={cn("tabular-nums text-lg", emphasize ? "font-bold" : "font-semibold")}>
+        <span className={cn("font-numeric text-2xl leading-none", emphasize ? "text-gold" : "text-foreground")}>
           {score}
         </span>
       )}
@@ -148,7 +148,7 @@ export function MatchCard({
             className={cn(
               "rounded-full px-2 py-0.5 font-bold tabular-nums",
               prediction.pointsAwarded > 0
-                ? "bg-primary/15 text-primary"
+                ? "bg-success/15 text-success"
                 : "bg-muted text-muted-foreground",
             )}
           >

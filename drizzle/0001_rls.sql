@@ -128,6 +128,19 @@ create policy "points_history_read_all" on "points_history"
   for select to authenticated using (true);
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- Tie profiles to auth.users so deleting an auth user cascades to its profile
+-- (and onward to predictions/standings/etc via their FKs). Drizzle can't model
+-- this cross-schema FK, so it lives here.
+-- ─────────────────────────────────────────────────────────────────────────────
+do $$
+begin
+  alter table profiles
+    add constraint profiles_id_fkey
+    foreign key (id) references auth.users(id) on delete cascade;
+exception when duplicate_object then null;
+end $$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- Auto-create a profile when an auth user is created.
 -- The user-creation script passes display_name + username in raw_user_meta_data.
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -154,3 +167,12 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Realtime: broadcast standings changes so the leaderboard animates live.
+-- ─────────────────────────────────────────────────────────────────────────────
+do $$
+begin
+  alter publication supabase_realtime add table standings;
+exception when duplicate_object then null;
+end $$;
