@@ -1,5 +1,5 @@
 import "server-only";
-import { asc, gte, lt, eq, and, inArray } from "drizzle-orm";
+import { asc, gte, lt, eq, and, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { matches, predictions, type Match } from "@/db/schema";
 
@@ -114,4 +114,54 @@ export async function getTodayMatches(): Promise<Match[]> {
     .from(matches)
     .where(and(gte(matches.kickoffUtc, start), lt(matches.kickoffUtc, end)))
     .orderBy(asc(matches.kickoffUtc));
+}
+
+/**
+ * Matches on the current US Eastern calendar day (the prediction window),
+ * joined with the user's prediction. The whole tournament is US-anchored, so
+ * "today" is ET — not the user's local day.
+ */
+export async function getUsTodayMatches(
+  userId: string,
+): Promise<MatchWithPrediction[]> {
+  const rows = await db
+    .select()
+    .from(matches)
+    .where(
+      sql`(${matches.kickoffUtc} at time zone 'America/New_York')::date
+          = (now() at time zone 'America/New_York')::date`,
+    )
+    .orderBy(asc(matches.kickoffUtc));
+
+  if (rows.length === 0) return [];
+
+  const preds = await db
+    .select()
+    .from(predictions)
+    .where(
+      and(
+        eq(predictions.userId, userId),
+        inArray(
+          predictions.matchId,
+          rows.map((r) => r.id),
+        ),
+      ),
+    );
+  const byMatch = new Map(preds.map((p) => [p.matchId, p]));
+
+  return rows.map((m) => {
+    const p = byMatch.get(m.id);
+    return {
+      ...m,
+      prediction: p
+        ? {
+            homePick: p.homePick,
+            awayPick: p.awayPick,
+            isDoubleDown: p.isDoubleDown,
+            locked: p.locked,
+            pointsAwarded: p.pointsAwarded,
+          }
+        : null,
+    };
+  });
 }

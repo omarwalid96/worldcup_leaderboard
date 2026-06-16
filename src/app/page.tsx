@@ -82,7 +82,7 @@ export default function LandingPage() {
             {[
               { k: "104", v: "matches" },
               { k: "48", v: "teams" },
-              { k: "5 pts", v: "exact score" },
+              { k: "3 pts", v: "exact score" },
             ].map((s) => (
               <div key={s.v} className="rounded-xl border bg-card/40 py-4 backdrop-blur">
                 <dt className="font-numeric text-4xl text-gold">{s.k}</dt>
@@ -118,10 +118,10 @@ export default function LandingPage() {
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { pts: "5", label: "Exact scoreline", tone: "text-gold" },
-              { pts: "3", label: "Result + goal diff", tone: "text-primary" },
+              { pts: "3", label: "Exact scoreline", tone: "text-gold" },
               { pts: "1", label: "Correct result", tone: "text-foreground" },
-              { pts: "×2", label: "Double-down match", tone: "text-gold" },
+              { pts: "0", label: "Wrong", tone: "text-muted-foreground" },
+              { pts: "×2", label: "Double-down", tone: "text-gold" },
             ].map((r) => (
               <div key={r.label} className="rounded-xl bg-background/40 p-4">
                 <div className={`font-numeric text-4xl ${r.tone}`}>

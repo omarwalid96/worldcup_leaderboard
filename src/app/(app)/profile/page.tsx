@@ -4,16 +4,18 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RankTrend } from "@/components/profile/rank-trend";
+import { PointsChart } from "@/components/profile/points-chart";
 import { requireProfile } from "@/lib/auth/session";
-import { getProfileStats, getUserBadges } from "@/lib/profile/stats";
+import { getProfileStats, getUserBadges, getPointsHistory } from "@/lib/profile/stats";
 
 export const metadata: Metadata = { title: "Profile" };
 
 export default async function ProfilePage() {
   const profile = await requireProfile();
-  const [stats, earnedBadges] = await Promise.all([
+  const [stats, earnedBadges, pointsHistory] = await Promise.all([
     getProfileStats(profile.id),
     getUserBadges(profile.id),
+    getPointsHistory(profile.id),
   ]);
 
   const initials = profile.displayName
@@ -93,9 +95,7 @@ export default async function ProfilePage() {
           <CardTitle className="text-base">Points over time</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-border/60 text-sm text-muted-foreground">
-            Your progress chart appears once matches are graded.
-          </div>
+          <PointsChart data={pointsHistory} />
         </CardContent>
       </Card>
 

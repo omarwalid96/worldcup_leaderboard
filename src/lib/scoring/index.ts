@@ -1,17 +1,15 @@
 /**
  * Pure scoring functions. No I/O — deterministic and unit-testable.
  *
- * Default rules (configurable per league later):
- *   - Exact scoreline:                       5 pts
- *   - Correct result + correct goal diff:    3 pts  (e.g. predicted 2–1, actual 3–2)
- *   - Correct result only (W/D/L):           1 pt
- *   - Wrong result:                          0 pts
- *   - Double-down: that match's points are doubled
+ * Rules:
+ *   - Exact scoreline:                3 pts
+ *   - Correct outcome only (W/D/L):   1 pt   (right winner, or both drew)
+ *   - Wrong outcome:                  0 pts
+ *   - Double-down: that match's points are doubled (exact → 6, outcome → 2)
  */
 
 export const SCORING = {
-  exact: 5,
-  resultAndGoalDiff: 3,
+  exact: 3,
   resultOnly: 1,
   wrong: 0,
   streakBonusPerDay: 1,
@@ -38,20 +36,17 @@ export interface ScoreInput {
 export function basePoints(input: Omit<ScoreInput, "isDoubleDown">): number {
   const { homePick, awayPick, homeActual, awayActual } = input;
 
+  // Exact scoreline.
   if (homePick === homeActual && awayPick === awayActual) {
     return SCORING.exact;
   }
 
-  const predicted = outcome(homePick, awayPick);
-  const actual = outcome(homeActual, awayActual);
-  if (predicted !== actual) return SCORING.wrong;
+  // Correct outcome (same winner, or both predicted+actual are draws).
+  if (outcome(homePick, awayPick) === outcome(homeActual, awayActual)) {
+    return SCORING.resultOnly;
+  }
 
-  // Same result — does the goal difference also match?
-  const predictedDiff = homePick - awayPick;
-  const actualDiff = homeActual - awayActual;
-  if (predictedDiff === actualDiff) return SCORING.resultAndGoalDiff;
-
-  return SCORING.resultOnly;
+  return SCORING.wrong;
 }
 
 /** Final points for a prediction, applying the double-down multiplier. */

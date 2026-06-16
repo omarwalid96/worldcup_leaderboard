@@ -7,6 +7,7 @@ import { fetchLeaderboardRows } from "@/lib/leaderboard/actions";
 import { LeaderboardTable } from "./leaderboard-table";
 import type { LeaderboardRow } from "@/lib/leaderboard/queries";
 import { cn } from "@/lib/utils";
+import { celebrateClimb } from "@/lib/celebrate";
 
 /**
  * Holds the leaderboard rows in client state and subscribes to Supabase
@@ -50,7 +51,15 @@ export function RealtimeLeaderboard({
         () => {
           startTransition(async () => {
             const fresh = await fetchLeaderboardRows(leagueId);
-            setRows(fresh);
+            // Celebrate if the current user climbed the table.
+            setRows((prev) => {
+              const before = prev.find((r) => r.userId === currentUserId)?.rank;
+              const after = fresh.find((r) => r.userId === currentUserId)?.rank;
+              if (before != null && after != null && after < before) {
+                celebrateClimb();
+              }
+              return fresh;
+            });
             setJustUpdated(true);
             if (flashTimer.current) clearTimeout(flashTimer.current);
             flashTimer.current = setTimeout(() => setJustUpdated(false), 1500);
@@ -65,7 +74,7 @@ export function RealtimeLeaderboard({
       if (flashTimer.current) clearTimeout(flashTimer.current);
       supabase.removeChannel(channel);
     };
-  }, [leagueId]);
+  }, [leagueId, currentUserId]);
 
   return (
     <div className="flex flex-col gap-3">

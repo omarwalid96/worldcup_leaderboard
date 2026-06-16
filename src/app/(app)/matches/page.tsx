@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MatchList } from "@/components/match/match-list";
 import { requireProfile } from "@/lib/auth/session";
 import { getMatchesWithPredictions } from "@/lib/matches/queries";
+import { isUsToday } from "@/lib/time/usday";
 
 export const metadata: Metadata = { title: "Matches" };
 
@@ -23,6 +24,8 @@ export default async function MatchesPage() {
   const profile = await requireProfile();
   const all = await getMatchesWithPredictions(profile.id);
 
+  // "Today" = the US Eastern day; only these are predictable.
+  const today = all.filter((m) => isUsToday(m.kickoffUtc));
   const upcoming = all.filter((m) => m.status === "scheduled");
   const live = all.filter((m) => m.status === "live");
   const finished = all.filter((m) => m.status === "finished");
@@ -32,27 +35,27 @@ export default async function MatchesPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Matches</h1>
         <p className="text-sm text-muted-foreground">
-          Tap an upcoming match to predict the scoreline.
+          Predictions open for today&apos;s matches (US Eastern). Tap a card to pick.
         </p>
       </div>
 
-      <Tabs defaultValue="upcoming">
+      <Tabs defaultValue={today.length ? "today" : "upcoming"}>
         <TabsList className="w-full justify-start overflow-x-auto">
-          <TabsTrigger value="upcoming">
-            Upcoming{upcoming.length ? ` (${upcoming.length})` : ""}
+          <TabsTrigger value="today">
+            Today{today.length ? ` (${today.length})` : ""}
           </TabsTrigger>
           <TabsTrigger value="live">
             Live{live.length ? ` (${live.length})` : ""}
           </TabsTrigger>
+          <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
           <TabsTrigger value="finished">Results</TabsTrigger>
-          <TabsTrigger value="all">All</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="upcoming" className="mt-5">
-          {upcoming.length ? (
-            <MatchList matches={upcoming} userTz={profile.timezone} />
+        <TabsContent value="today" className="mt-5">
+          {today.length ? (
+            <MatchList matches={today} userTz={profile.timezone} />
           ) : (
-            <EmptyState label="No upcoming matches right now." />
+            <EmptyState label="No matches today. Check back on the next matchday (US Eastern)." />
           )}
         </TabsContent>
 
@@ -64,16 +67,20 @@ export default async function MatchesPage() {
           )}
         </TabsContent>
 
+        <TabsContent value="upcoming" className="mt-5">
+          {upcoming.length ? (
+            <MatchList matches={upcoming} userTz={profile.timezone} />
+          ) : (
+            <EmptyState label="No upcoming matches right now." />
+          )}
+        </TabsContent>
+
         <TabsContent value="finished" className="mt-5">
           {finished.length ? (
             <MatchList matches={[...finished].reverse()} userTz={profile.timezone} />
           ) : (
             <EmptyState label="No finished matches yet." />
           )}
-        </TabsContent>
-
-        <TabsContent value="all" className="mt-5">
-          <MatchList matches={all} userTz={profile.timezone} />
         </TabsContent>
       </Tabs>
     </div>

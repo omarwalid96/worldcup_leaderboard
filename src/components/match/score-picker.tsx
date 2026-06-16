@@ -8,6 +8,7 @@ import { TeamFlag } from "./team-flag";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { savePrediction } from "@/lib/predictions/actions";
+import { celebrateSave } from "@/lib/celebrate";
 
 interface Team {
   name: string;
@@ -60,6 +61,7 @@ export function ScorePicker({
   initialAway,
   initialDoubleDown,
   locked,
+  lockReason,
 }: {
   matchId: string;
   home: Team;
@@ -68,6 +70,8 @@ export function ScorePicker({
   initialAway: number | null;
   initialDoubleDown: boolean;
   locked: boolean;
+  /** Optional override message for the locked banner. */
+  lockReason?: string;
 }) {
   const router = useRouter();
   const [homePick, setHomePick] = useState(initialHome ?? 0);
@@ -90,6 +94,7 @@ export function ScorePicker({
         isDoubleDown: doubleDown,
       });
       if (res.ok) {
+        celebrateSave();
         toast.success("Pick saved", {
           description: `${home.name} ${homePick}–${awayPick} ${away.name}${doubleDown ? " · double-down" : ""}`,
         });
@@ -121,8 +126,9 @@ export function ScorePicker({
       </div>
 
       {locked ? (
-        <div className="flex items-center justify-center gap-2 rounded-xl border border-border/60 bg-muted/40 py-3 text-sm font-medium text-muted-foreground">
-          <Lock className="size-4" /> This match has kicked off — picks are locked.
+        <div className="flex items-center justify-center gap-2 rounded-xl border border-border/60 bg-muted/40 px-4 py-3 text-center text-sm font-medium text-muted-foreground">
+          <Lock className="size-4 shrink-0" />
+          {lockReason ?? "This match has kicked off — picks are locked."}
         </div>
       ) : (
         <>

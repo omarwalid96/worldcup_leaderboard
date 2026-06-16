@@ -1,5 +1,6 @@
-import { Trophy } from "lucide-react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
+import brandMark from "../../public/brand-mark.jpg";
 
 export function Brand({
   className,
@@ -10,8 +11,15 @@ export function Brand({
 }) {
   return (
     <span className={cn("inline-flex items-center gap-2 font-semibold", className)}>
-      <span className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/20">
-        <Trophy className="size-4.5" strokeWidth={2.5} />
+      <span className="relative grid size-8 place-items-center overflow-hidden rounded-lg shadow-lg shadow-primary/20">
+        <Image
+          src={brandMark}
+          alt="GroupStage"
+          fill
+          sizes="32px"
+          className="object-cover"
+          priority
+        />
       </span>
       {showText && (
         <span className="text-lg tracking-tight">

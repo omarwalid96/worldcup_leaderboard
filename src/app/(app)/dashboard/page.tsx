@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MatchCard } from "@/components/match/match-card";
 import { requireProfile } from "@/lib/auth/session";
-import { getUpcomingMatches } from "@/lib/matches/queries";
+import { getUsTodayMatches } from "@/lib/matches/queries";
 
 export const metadata: Metadata = { title: "Home" };
 
 export default async function DashboardPage() {
   const profile = await requireProfile();
-  const upcoming = await getUpcomingMatches(profile.id, 4);
+  const today = await getUsTodayMatches(profile.id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -61,21 +61,28 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      {/* Next up */}
+      {/* Today's matches (US Eastern day = the prediction window) */}
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-muted-foreground">Next up</h2>
+          <h2 className="text-sm font-semibold text-muted-foreground">
+            Today&apos;s matches
+          </h2>
           <Link
             href="/matches"
-            className="text-xs font-medium text-primary hover:underline"
+            className="text-xs font-medium text-gold hover:underline"
           >
             See all
           </Link>
         </div>
-        {upcoming.length ? (
+        {today.length ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {upcoming.map((m) => (
-              <MatchCard key={m.id} match={m} userTz={profile.timezone} />
+            {today.map((m) => (
+              <MatchCard
+                key={m.id}
+                match={m}
+                userTz={profile.timezone}
+                predictable
+              />
             ))}
           </div>
         ) : (
@@ -83,7 +90,7 @@ export default async function DashboardPage() {
             <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
               <CalendarDays className="size-8 text-muted-foreground/60" />
               <p className="text-sm text-muted-foreground">
-                No upcoming matches right now.
+                No matches today. Predictions open each matchday (US Eastern).
               </p>
             </CardContent>
           </Card>

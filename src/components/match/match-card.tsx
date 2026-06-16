@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { motion } from "motion/react";
 import { Lock, Check, ChevronRight, Zap } from "lucide-react";
 import { TeamFlag } from "./team-flag";
 import { KickoffTime, KickoffCountdown } from "./kickoff-time";
@@ -50,14 +53,19 @@ function TeamRow({
 
 /**
  * Match card with three visual states (scheduled / live / finished).
- * Tapping an upcoming card routes to the prediction page (Milestone 4).
+ * When `predictable` (match is on the US-Eastern day and hasn't locked), the
+ * WHOLE card is a tappable link to the prediction page with a snappy press
+ * animation. Otherwise it's static.
  */
 export function MatchCard({
   match,
   userTz,
+  predictable = false,
 }: {
   match: MatchWithPrediction;
   userTz: string;
+  /** True only when the match is on the current US-Eastern day and not locked. */
+  predictable?: boolean;
 }) {
   const { status, homeScore, awayScore, prediction } = match;
   const isLive = status === "live";
@@ -67,14 +75,10 @@ export function MatchCard({
   const homeWon = isFinished && (homeScore ?? 0) > (awayScore ?? 0);
   const awayWon = isFinished && (awayScore ?? 0) > (homeScore ?? 0);
 
-  const card = (
-    <div
-      className={cn(
-        "group relative rounded-2xl border bg-card/70 p-4 backdrop-blur transition-colors",
-        isUpcoming && "hover:border-primary/40",
-        isLive && "border-live/40",
-      )}
-    >
+  const tappable = isUpcoming && predictable && !prediction?.locked;
+
+  const inner = (
+    <>
       {/* Header: stage + status */}
       <div className="mb-3 flex items-center justify-between">
         <span className="text-xs font-medium text-muted-foreground">
@@ -134,14 +138,18 @@ export function MatchCard({
                 <Check className="size-3.5" />
                 {prediction.isDoubleDown && <Zap className="size-3.5 text-gold" />}
                 {prediction.homePick}–{prediction.awayPick}
-                <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                {tappable && (
+                  <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                )}
               </span>
             )
-          ) : (
-            <span className="inline-flex items-center gap-1 font-semibold text-primary">
+          ) : tappable ? (
+            <span className="inline-flex items-center gap-1 font-semibold text-gold">
               Predict
               <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
             </span>
+          ) : (
+            <span className="text-muted-foreground">Opens on matchday</span>
           )
         ) : prediction?.pointsAwarded != null ? (
           <span
@@ -156,16 +164,27 @@ export function MatchCard({
           </span>
         ) : null}
       </div>
-    </div>
+    </>
   );
 
-  // Upcoming, unlocked → link to predict. Otherwise static.
-  if (isUpcoming && !prediction?.locked) {
+  const baseClass = cn(
+    "group relative block rounded-2xl border bg-card/70 p-4 backdrop-blur transition-colors",
+    tappable && "hover:border-gold/50",
+    isLive && "border-live/40",
+  );
+
+  if (tappable) {
     return (
-      <Link href={`/matches/${match.id}`} className="block">
-        {card}
-      </Link>
+      <motion.div
+        whileTap={{ scale: 0.97 }}
+        transition={{ type: "spring", stiffness: 700, damping: 30 }}
+      >
+        <Link href={`/matches/${match.id}`} className={baseClass}>
+          {inner}
+        </Link>
+      </motion.div>
     );
   }
-  return card;
+
+  return <div className={baseClass}>{inner}</div>;
 }

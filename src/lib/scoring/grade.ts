@@ -7,6 +7,7 @@ import {
   standings,
   leagueMembers,
   pointsHistory,
+  userBadges,
 } from "@/db/schema";
 import { scorePrediction, isExactHit } from "./index";
 
@@ -81,6 +82,9 @@ export async function gradeFinishedMatches(): Promise<
   // Recompute standings for every league (cheap at this scale, and correct).
   const recomputedLeagues = await recomputeAllStandings();
 
+  // Award any newly-earned badges from the refreshed standings/stats.
+  await awardBadges();
+
   return {
     gradedMatches: gradedMatchIds.length,
     gradedPredictions,
@@ -89,6 +93,63 @@ export async function gradeFinishedMatches(): Promise<
     exactHitUserIds: [...exactHitUserIds],
     affectedUserIds: [...affectedUserIds],
   };
+}
+
+/**
+ * Grants badges based on current stats. Idempotent (user_badges PK on
+ * (user_id, badge_id) + onConflictDoNothing), so re-running is safe.
+ *
+ * Badge ids must exist (seeded in scripts/seed.ts):
+ *   first_exact, hat_trick, double_or_nothing, top_of_table, hot_streak
+ */
+export async function awardBadges(): Promise<void> {
+  // Per-user aggregates over graded predictions.
+  const stats = await db
+    .select({
+      userId: predictions.userId,
+      exactHits: sql<number>`count(*) filter (
+        where ${predictions.pointsAwarded} is not null
+          and ${predictions.homePick} = ${matches.homeScore}
+          and ${predictions.awayPick} = ${matches.awayScore})::int`,
+      ddWins: sql<number>`count(*) filter (
+        where ${predictions.isDoubleDown} and ${predictions.pointsAwarded} > 0)::int`,
+    })
+    .from(predictions)
+    .innerJoin(matches, eq(matches.id, predictions.matchId))
+    .groupBy(predictions.userId);
+
+  // Anyone currently ranked #1 in any league earns Table Topper.
+  const leaders = await db
+    .select({ userId: standings.userId })
+    .from(standings)
+    .where(eq(standings.rank, 1));
+  const leaderIds = new Set(leaders.map((l) => l.userId));
+
+  // Best streak per user (from standings).
+  const streakRows = await db
+    .select({ userId: standings.userId, streak: standings.streak })
+    .from(standings);
+  const bestStreak = new Map<string, number>();
+  for (const r of streakRows) {
+    bestStreak.set(r.userId, Math.max(bestStreak.get(r.userId) ?? 0, r.streak));
+  }
+
+  const toAward: { userId: string; badgeId: string }[] = [];
+  for (const s of stats) {
+    if (s.exactHits >= 1) toAward.push({ userId: s.userId, badgeId: "first_exact" });
+    if (s.exactHits >= 3) toAward.push({ userId: s.userId, badgeId: "hat_trick" });
+    if (s.ddWins >= 1) toAward.push({ userId: s.userId, badgeId: "double_or_nothing" });
+    if (leaderIds.has(s.userId)) toAward.push({ userId: s.userId, badgeId: "top_of_table" });
+    if ((bestStreak.get(s.userId) ?? 0) >= 3)
+      toAward.push({ userId: s.userId, badgeId: "hot_streak" });
+  }
+
+  for (const a of toAward) {
+    await db
+      .insert(userBadges)
+      .values({ userId: a.userId, badgeId: a.badgeId })
+      .onConflictDoNothing();
+  }
 }
 
 /**
@@ -121,9 +182,15 @@ export async function recomputeLeagueStandings(leagueId: string): Promise<void> 
     .select({
       userId: predictions.userId,
       totalPoints: sql<number>`coalesce(sum(${predictions.pointsAwarded}), 0)::int`,
-      exactHits: sql<number>`count(*) filter (where ${predictions.pointsAwarded} = 5 or (${predictions.isDoubleDown} and ${predictions.pointsAwarded} = 10))::int`,
+      // Exact hit = predicted scoreline equals the actual final score.
+      exactHits: sql<number>`count(*) filter (
+        where ${predictions.pointsAwarded} is not null
+          and ${predictions.homePick} = ${matches.homeScore}
+          and ${predictions.awayPick} = ${matches.awayScore}
+      )::int`,
     })
     .from(predictions)
+    .innerJoin(matches, eq(matches.id, predictions.matchId))
     .where(inArray(predictions.userId, userIds))
     .groupBy(predictions.userId);
 
@@ -259,4 +326,25 @@ export async function snapshotPointsHistory(): Promise<void> {
         set: { cumulativePoints: running, recordedAt: new Date() },
       });
   }
+}
+
+/**
+ * Re-grade everything under the current scoring rules. Clears points on all
+ * finished matches' predictions, wipes the history snapshot, then grades fresh.
+ * Use after a scoring-rule change. Idempotent.
+ */
+export async function regradeAll(): Promise<
+  GradeSummary & { exactHitUserIds: string[]; affectedUserIds: string[] }
+> {
+  await db.execute(sql`
+    update predictions p
+    set points_awarded = null
+    from matches m
+    where p.match_id = m.id and m.status = 'finished'
+  `);
+  await db.delete(pointsHistory);
+
+  const result = await gradeFinishedMatches();
+  await snapshotPointsHistory();
+  return result;
 }

@@ -1,7 +1,7 @@
 import "server-only";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, sql, desc } from "drizzle-orm";
 import { db } from "@/db";
-import { matches, predictions, type Match } from "@/db/schema";
+import { matches, predictions, profiles, type Match } from "@/db/schema";
 
 export interface MatchForPrediction {
   match: Match;
@@ -52,4 +52,39 @@ export async function getMatchForPrediction(
         }
       : null,
   };
+}
+
+export interface FriendPick {
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  homePick: number;
+  awayPick: number;
+  isDoubleDown: boolean;
+  pointsAwarded: number | null;
+}
+
+/**
+ * All members' predictions for a match (picks are always visible in this
+ * league). Ordered by points desc once graded, else by who picked first.
+ */
+export async function getMatchPredictions(
+  matchId: string,
+): Promise<FriendPick[]> {
+  return db
+    .select({
+      userId: predictions.userId,
+      username: profiles.username,
+      displayName: profiles.displayName,
+      avatarUrl: profiles.avatarUrl,
+      homePick: predictions.homePick,
+      awayPick: predictions.awayPick,
+      isDoubleDown: predictions.isDoubleDown,
+      pointsAwarded: predictions.pointsAwarded,
+    })
+    .from(predictions)
+    .innerJoin(profiles, eq(profiles.id, predictions.userId))
+    .where(eq(predictions.matchId, matchId))
+    .orderBy(desc(predictions.pointsAwarded), predictions.createdAt);
 }

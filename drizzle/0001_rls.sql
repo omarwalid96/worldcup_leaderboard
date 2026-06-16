@@ -73,7 +73,8 @@ drop policy if exists "predictions_read_all" on "predictions";
 create policy "predictions_read_all" on "predictions"
   for select to authenticated using (true); -- league members can see each other's picks
 
--- Insert only your own prediction, and only for a match that has NOT kicked off.
+-- Insert only your own prediction, for a match that has NOT kicked off AND is
+-- on the current US Eastern calendar day (the prediction window).
 drop policy if exists "predictions_insert_own_unlocked" on "predictions";
 create policy "predictions_insert_own_unlocked" on "predictions"
   for insert to authenticated
@@ -82,12 +83,15 @@ create policy "predictions_insert_own_unlocked" on "predictions"
     and locked = false
     and exists (
       select 1 from "matches" m
-      where m.id = match_id and m.kickoff_utc > now()
+      where m.id = match_id
+        and m.kickoff_utc > now()
+        and (m.kickoff_utc at time zone 'America/New_York')::date
+            = (now() at time zone 'America/New_York')::date
     )
   );
 
--- Update only your own prediction, only while still unlocked AND before kickoff.
--- This is defense-in-depth; the Server Action enforces the same rule first.
+-- Update only your own prediction, while unlocked, before kickoff, and only on
+-- the current US Eastern day. Defense-in-depth; the Server Action checks first.
 drop policy if exists "predictions_update_own_unlocked" on "predictions";
 create policy "predictions_update_own_unlocked" on "predictions"
   for update to authenticated
@@ -96,7 +100,10 @@ create policy "predictions_update_own_unlocked" on "predictions"
     and locked = false
     and exists (
       select 1 from "matches" m
-      where m.id = match_id and m.kickoff_utc > now()
+      where m.id = match_id
+        and m.kickoff_utc > now()
+        and (m.kickoff_utc at time zone 'America/New_York')::date
+            = (now() at time zone 'America/New_York')::date
     )
   )
   with check (
@@ -104,7 +111,10 @@ create policy "predictions_update_own_unlocked" on "predictions"
     and locked = false
     and exists (
       select 1 from "matches" m
-      where m.id = match_id and m.kickoff_utc > now()
+      where m.id = match_id
+        and m.kickoff_utc > now()
+        and (m.kickoff_utc at time zone 'America/New_York')::date
+            = (now() at time zone 'America/New_York')::date
     )
   );
 

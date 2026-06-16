@@ -4,8 +4,10 @@ import type { Metadata } from "next";
 import { ArrowLeft, MapPin } from "lucide-react";
 import { ScorePicker } from "@/components/match/score-picker";
 import { KickoffTime } from "@/components/match/kickoff-time";
+import { FriendsPicks } from "@/components/match/friends-picks";
 import { requireProfile } from "@/lib/auth/session";
-import { getMatchForPrediction } from "@/lib/predictions/queries";
+import { getMatchForPrediction, getMatchPredictions } from "@/lib/predictions/queries";
+import { isUsToday } from "@/lib/time/usday";
 
 export const metadata: Metadata = { title: "Make your pick" };
 
@@ -26,10 +28,17 @@ export default async function PredictPage({
 }) {
   const { id } = await params;
   const profile = await requireProfile();
-  const data = await getMatchForPrediction(id, profile.id);
+  const [data, friendsPicks] = await Promise.all([
+    getMatchForPrediction(id, profile.id),
+    getMatchPredictions(id),
+  ]);
   if (!data) notFound();
 
   const { match, locked, prediction } = data;
+  // Editable only if it's the US-Eastern day AND kickoff hasn't passed.
+  const usToday = isUsToday(match.kickoffUtc);
+  const editable = usToday && !locked;
+  const isGraded = match.status === "finished";
   const stageText =
     match.stage === "group"
       ? `Group ${match.groupName ?? ""}`.trim()
@@ -72,12 +81,21 @@ export default async function PredictPage({
         initialHome={prediction?.homePick ?? null}
         initialAway={prediction?.awayPick ?? null}
         initialDoubleDown={prediction?.isDoubleDown ?? false}
-        locked={locked}
+        locked={!editable}
+        lockReason={
+          !usToday && !locked
+            ? "Predictions for this match open on its matchday (US Eastern)."
+            : undefined
+        }
       />
 
-      <p className="text-center text-xs text-muted-foreground">
-        Picks lock automatically at kickoff. You can edit any time before then.
-      </p>
+      {editable && (
+        <p className="text-center text-xs text-muted-foreground">
+          Exact score = 3 pts · correct result = 1 pt. Picks lock at kickoff.
+        </p>
+      )}
+
+      <FriendsPicks picks={friendsPicks} currentUserId={profile.id} graded={isGraded} />
     </div>
   );
 }
