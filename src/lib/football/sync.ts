@@ -8,27 +8,27 @@ export interface SyncSummary {
   fixturesSeen: number;
   statusChanges: number;
   scoresUpdated: number;
+  liveMerged: number;
   lockedNow: number;
 }
 
 /**
- * Pull the provider's fixtures/results and reconcile them into the DB:
- *  - update scores + status for matches that changed
- *  - flip scheduled→live / →finished as the provider reports
- *
- * Live transitions: openfootball has no in-play feed, so a match flips to
- * "finished" when a final score appears. If a keyed live provider is wired,
- * its getLiveMatches() marks matches live. Either way, kickoff-based locking of
- * predictions is handled by lockKickedOffPredictions() below.
+ * Pull fixtures + results and reconcile them into the DB:
+ *  - openfootball fixtures keep the schedule current (by externalId)
+ *  - the live source (worldcup26.ir) supplies in-play + final scores, matched
+ *    by normalized matchKey (teams + matchday) since ids/spellings differ
+ *  - never downgrade a finished match
+ * Kickoff-based locking of predictions is handled by lockKickedOffPredictions().
  */
 export async function syncMatches(): Promise<SyncSummary> {
   const provider = getFootballProvider();
+  // worldcup26 fixtures already carry live status + in-play scores, so one
+  // fetch reconciles schedule AND live by externalId (single source of truth).
   const fixtures = await provider.getFixtures();
 
   let statusChanges = 0;
   let scoresUpdated = 0;
 
-  // Map current DB state by external id.
   const existing = await db
     .select({
       id: matches.id,
@@ -42,14 +42,14 @@ export async function syncMatches(): Promise<SyncSummary> {
 
   for (const f of fixtures) {
     const cur = byExt.get(f.externalId);
-    if (!cur) continue; // new fixtures are added by the seed, not the sync
+    if (!cur) continue; // new fixtures are introduced by the seed, not the sync
+
+    // Never downgrade a finished match (protects against a flaky feed blip).
+    if (cur.status === "finished") continue;
 
     const scoreChanged =
       f.homeScore !== cur.homeScore || f.awayScore !== cur.awayScore;
-    // Never downgrade live→scheduled from a schedule-only feed.
-    const nextStatus =
-      cur.status === "live" && f.status === "scheduled" ? "live" : f.status;
-    const statusChanged = nextStatus !== cur.status;
+    const statusChanged = f.status !== cur.status;
 
     if (scoreChanged || statusChanged) {
       await db
@@ -57,7 +57,7 @@ export async function syncMatches(): Promise<SyncSummary> {
         .set({
           homeScore: f.homeScore,
           awayScore: f.awayScore,
-          status: nextStatus,
+          status: f.status,
           lastSyncedAt: new Date(),
         })
         .where(eq(matches.id, cur.id));
@@ -66,28 +66,13 @@ export async function syncMatches(): Promise<SyncSummary> {
     }
   }
 
-  // Merge any in-play results from a live provider (no-op for openfootball).
-  const live = await provider.getLiveMatches();
-  for (const r of live) {
-    const cur = byExt.get(r.externalId);
-    if (!cur) continue;
-    await db
-      .update(matches)
-      .set({
-        status: r.status,
-        homeScore: r.homeScore,
-        awayScore: r.awayScore,
-        lastSyncedAt: new Date(),
-      })
-      .where(eq(matches.id, cur.id));
-  }
-
   const lockedNow = await lockKickedOffPredictions();
 
   return {
     fixturesSeen: fixtures.length,
     statusChanges,
     scoresUpdated,
+    liveMerged: scoresUpdated, // live scores arrive via the same fixtures fetch
     lockedNow,
   };
 }

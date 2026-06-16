@@ -10,7 +10,7 @@
  * Needs DATABASE_URL. Uses the configured FootballProvider (default openfootball).
  */
 import postgres from "postgres";
-import { openfootballProvider } from "../src/lib/football/openfootball";
+import { compositeProvider } from "../src/lib/football/composite";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
@@ -30,9 +30,19 @@ const BADGES = [
 ] as const;
 
 async function main() {
-  console.log("Fetching fixtures from openfootball…");
-  const fixtures = await openfootballProvider.getFixtures();
+  console.log(`Fetching fixtures from ${compositeProvider.name}…`);
+  const fixtures = await compositeProvider.getFixtures();
   console.log(`Got ${fixtures.length} fixtures.`);
+
+  // Switching fixture sources changes external_id scheme. Remove stale matches
+  // whose external_id is no longer present (keeps predictions on kept matches).
+  const keepIds = fixtures.map((f) => f.externalId);
+  if (keepIds.length > 0) {
+    const removed = await sql`
+      delete from matches where external_id <> all(${keepIds})
+    `;
+    if (removed.count > 0) console.log(`Removed ${removed.count} stale matches.`);
+  }
 
   let upserted = 0;
   for (const f of fixtures) {

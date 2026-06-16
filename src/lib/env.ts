@@ -10,7 +10,8 @@ export const env = {
   supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
   databaseUrl: process.env.DATABASE_URL,
-  footballProvider: process.env.FOOTBALL_PROVIDER ?? "openfootball",
+  // "worldcup26" (near-live, default) or "openfootball" (final results only).
+  footballProvider: process.env.FOOTBALL_PROVIDER ?? "worldcup26",
   footballLiveApiKey: process.env.FOOTBALL_LIVE_API_KEY,
   vapidPublicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
   vapidPrivateKey: process.env.VAPID_PRIVATE_KEY,

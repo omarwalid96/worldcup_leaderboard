@@ -30,7 +30,13 @@ export interface ProviderFixture {
 }
 
 export interface ProviderResult {
+  /** Provider's own id (may not match our externalId across providers). */
   externalId: string;
+  /**
+   * Cross-provider match key (normalized teams + matchday). Used to reconcile
+   * results from a live provider against fixtures seeded from another source.
+   */
+  matchKey?: string;
   status: ProviderMatchStatus;
   homeScore: number | null;
   awayScore: number | null;
