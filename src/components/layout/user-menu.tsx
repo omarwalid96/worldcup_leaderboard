@@ -61,11 +61,15 @@ export function UserMenu({
         <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"
-          onSelect={() => {
-            void logoutAction();
-          }}
+          asChild
+          // Don't let the menu's default close-on-select cancel the submission.
+          onSelect={(e) => e.preventDefault()}
         >
-          <LogOut className="size-4" /> Sign out
+          <form action={logoutAction} className="w-full">
+            <button type="submit" className="flex w-full items-center gap-2">
+              <LogOut className="size-4" /> Sign out
+            </button>
+          </form>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

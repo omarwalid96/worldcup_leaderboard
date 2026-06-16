@@ -54,6 +54,7 @@ See [`.env.example`](./.env.example) for the full list. The essentials:
 | `npm run db:seed` | Seed the 2026 fixtures (Milestone 3) |
 | `npm run users:create` | Create preset username/password users (Milestone 2) |
 | `npm run users:rename -- <username> "<New Name>"` | Change a user's display name (login username stays the same) |
+| `npm run users:password -- <username> ["<new-pass>"]` | Set a user's password (random if omitted) |
 
 ## Architecture notes
 

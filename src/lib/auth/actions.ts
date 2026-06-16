@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { usernameToEmail, normalizeUsername } from "./usernames";
@@ -42,11 +43,17 @@ export async function loginAction(
     return { error: "Incorrect username or password." };
   }
 
+  // Purge the full client Router Cache so no stale (pre-login or other-user)
+  // RSC payloads are reused after the redirect.
+  revalidatePath("/", "layout");
   redirect("/dashboard");
 }
 
 export async function logoutAction(): Promise<void> {
   const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut();
+  // Clear the Router Cache so prefetched authenticated pages don't linger and
+  // cause a client-side error on the next sign-in (requiring a hard reload).
+  revalidatePath("/", "layout");
   redirect("/login");
 }
