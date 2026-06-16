@@ -16,8 +16,14 @@
  * SUPABASE_SERVICE_ROLE_KEY + DATABASE_URL in the environment.
  */
 import { randomBytes } from "node:crypto";
+import ws from "ws";
 import { createClient } from "@supabase/supabase-js";
 import postgres from "postgres";
+
+// supabase-js initializes a Realtime client which needs a WebSocket. Node < 22
+// has no native one, so polyfill with `ws` for this CLI script.
+// @ts-expect-error - assigning to the global for the supabase realtime client
+globalThis.WebSocket ??= ws;
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
