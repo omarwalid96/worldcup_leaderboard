@@ -67,7 +67,7 @@ export async function savePrediction(input: {
 
   // Re-read the match and check, using the DB clock (never the client):
   //  - open:   kickoff hasn't passed (lock rule)
-  //  - inWindow: now is within the 12h pre-kickoff prediction window
+  //  - inWindow: now is within the 24h pre-kickoff prediction window
   const [match] = await db
     .select({
       id: matches.id,
@@ -75,7 +75,7 @@ export async function savePrediction(input: {
       matchday: matches.matchday,
       open: sql<boolean>`(${matches.kickoffUtc} > now())`,
       inWindow: sql<boolean>`(
-        now() >= ${matches.kickoffUtc} - interval '12 hours'
+        now() >= ${matches.kickoffUtc} - interval '24 hours'
         and now() < ${matches.kickoffUtc}
       )`,
     })
@@ -90,7 +90,7 @@ export async function savePrediction(input: {
   if (!match.inWindow) {
     return {
       ok: false,
-      error: "Predictions open 12 hours before kickoff.",
+      error: "Predictions open 24 hours before kickoff.",
     };
   }
 

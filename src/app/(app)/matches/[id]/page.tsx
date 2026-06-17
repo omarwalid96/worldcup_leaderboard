@@ -36,7 +36,7 @@ export default async function PredictPage({
   if (!data) notFound();
 
   const { match, locked, prediction } = data;
-  // Editable only within the 12h pre-kickoff window AND before kickoff.
+  // Editable only within the 24h pre-kickoff window AND before kickoff.
   const inWindow = isPredictable(match.kickoffUtc);
   const editable = inWindow && !locked;
   const isGraded = match.status === "finished";
@@ -94,7 +94,7 @@ export default async function PredictPage({
         locked={!editable}
         lockReason={
           !inWindow && !locked
-            ? "Predictions open 12 hours before kickoff."
+            ? "Predictions open 24 hours before kickoff."
             : undefined
         }
         isKnockout={match.stage !== "group"}

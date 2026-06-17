@@ -25,7 +25,7 @@ export default async function MatchesPage() {
   const profile = await requireProfile();
   const all = await getMatchesWithPredictions(profile.id);
 
-  // "Open" = within the 12h pre-kickoff window; only these are predictable now.
+  // "Open" = within the 24h pre-kickoff window; only these are predictable now.
   const open = all.filter((m) => isPredictable(m.kickoffUtc));
   const upcoming = all.filter((m) => m.status === "scheduled");
   const live = all.filter((m) => m.status === "live");
@@ -36,7 +36,7 @@ export default async function MatchesPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Matches</h1>
         <p className="text-sm text-muted-foreground">
-          Predictions open 12 hours before kickoff. Tap a card to pick.
+          Predictions open 24 hours before kickoff. Tap a card to pick.
         </p>
       </div>
 
@@ -57,7 +57,7 @@ export default async function MatchesPage() {
             {open.length ? (
               <MatchList matches={open} userTz={profile.timezone} />
             ) : (
-              <EmptyState label="Nothing open right now. Picks open 12 hours before each match." />
+              <EmptyState label="Nothing open right now. Picks open 24 hours before each match." />
             )}
           </TabsContent>
 

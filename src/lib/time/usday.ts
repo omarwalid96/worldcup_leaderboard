@@ -1,12 +1,12 @@
 import { formatInTimeZone } from "date-fns-tz";
 
 /**
- * Prediction window: a pick can be created/edited starting 12 hours before
- * kickoff and locks at kickoff. "12h before kickoff" is a fixed UTC instant
+ * Prediction window: a pick can be created/edited starting 24 hours before
+ * kickoff and locks at kickoff. "24h before kickoff" is a fixed UTC instant
  * (the same moment for everyone) — a user's timezone only affects how that
  * open-time is displayed, not when it opens.
  */
-export const PREDICTION_WINDOW_HOURS = 12;
+export const PREDICTION_WINDOW_HOURS = 24;
 const WINDOW_MS = PREDICTION_WINDOW_HOURS * 60 * 60 * 1000;
 
 /**
@@ -16,14 +16,14 @@ const WINDOW_MS = PREDICTION_WINDOW_HOURS * 60 * 60 * 1000;
  */
 export const RELEASE_DATE_UTC = "2026-06-17T04:00:00Z";
 
-/** The instant predictions open for a match (kickoff − 12h). */
+/** The instant predictions open for a match (kickoff − 24h). */
 export function predictionOpensAt(kickoffUtc: Date | string): Date {
   const k = typeof kickoffUtc === "string" ? new Date(kickoffUtc) : kickoffUtc;
   return new Date(k.getTime() - WINDOW_MS);
 }
 
 /**
- * True when a match is currently predictable: within the 12h pre-kickoff window
+ * True when a match is currently predictable: within the 24h pre-kickoff window
  * and not yet kicked off. Server-authoritative (uses the passed `now`, default
  * the server clock). The kickoff lock still applies as the upper bound.
  */

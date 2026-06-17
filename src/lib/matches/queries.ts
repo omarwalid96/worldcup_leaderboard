@@ -114,7 +114,7 @@ export async function getTodayMatches(): Promise<Match[]> {
 }
 
 /**
- * Matches currently in the prediction window — within 12h before kickoff and
+ * Matches currently in the prediction window — within 24h before kickoff and
  * not yet started — joined with the user's prediction. These are the matches a
  * user can predict right now.
  */
@@ -125,7 +125,7 @@ export async function getPredictableMatches(
     .select()
     .from(matches)
     .where(
-      sql`now() >= ${matches.kickoffUtc} - interval '12 hours'
+      sql`now() >= ${matches.kickoffUtc} - interval '24 hours'
           and now() < ${matches.kickoffUtc}`,
     )
     .orderBy(asc(matches.kickoffUtc));

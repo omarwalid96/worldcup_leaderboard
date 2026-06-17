@@ -69,7 +69,7 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      {/* Open to predict now — within 12h of kickoff */}
+      {/* Open to predict now — within 24h of kickoff */}
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-muted-foreground">
@@ -98,7 +98,7 @@ export default async function DashboardPage() {
             <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
               <CalendarDays className="size-8 text-muted-foreground/60" />
               <p className="text-sm text-muted-foreground">
-                Nothing to predict right now. Picks open 12 hours before kickoff.
+                Nothing to predict right now. Picks open 24 hours before kickoff.
               </p>
             </CardContent>
           </Card>

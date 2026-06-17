@@ -1,7 +1,7 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 0006_rls_window.sql
 -- Switch prediction INSERT/UPDATE RLS policies from the US-Eastern calendar-day
--- gate to a pure UTC time-window gate: picks open 12 hours before kickoff and
+-- gate to a pure UTC time-window gate: picks open 24 hours before kickoff and
 -- lock at kickoff. The window is the same instant for every user worldwide.
 -- ─────────────────────────────────────────────────────────────────────────────
 
@@ -16,7 +16,7 @@ create policy "predictions_insert_own_unlocked" on "predictions"
       select 1 from "matches" m
       where m.id = match_id
         and m.kickoff_utc > now()
-        and now() >= m.kickoff_utc - interval '12 hours'
+        and now() >= m.kickoff_utc - interval '24 hours'
     )
   );
 
@@ -31,7 +31,7 @@ create policy "predictions_update_own_unlocked" on "predictions"
       select 1 from "matches" m
       where m.id = match_id
         and m.kickoff_utc > now()
-        and now() >= m.kickoff_utc - interval '12 hours'
+        and now() >= m.kickoff_utc - interval '24 hours'
     )
   )
   with check (
@@ -41,6 +41,6 @@ create policy "predictions_update_own_unlocked" on "predictions"
       select 1 from "matches" m
       where m.id = match_id
         and m.kickoff_utc > now()
-        and now() >= m.kickoff_utc - interval '12 hours'
+        and now() >= m.kickoff_utc - interval '24 hours'
     )
   );

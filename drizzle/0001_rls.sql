@@ -79,8 +79,8 @@ drop policy if exists "predictions_read_all" on "predictions";
 create policy "predictions_read_all" on "predictions"
   for select to authenticated using (true); -- league members can see each other's picks
 
--- Insert only your own prediction, for a match within the 12h pre-kickoff
--- prediction window (now >= kickoff - 12h AND kickoff > now).
+-- Insert only your own prediction, for a match within the 24h pre-kickoff
+-- prediction window (now >= kickoff - 24h AND kickoff > now).
 drop policy if exists "predictions_insert_own_unlocked" on "predictions";
 create policy "predictions_insert_own_unlocked" on "predictions"
   for insert to authenticated
@@ -91,11 +91,11 @@ create policy "predictions_insert_own_unlocked" on "predictions"
       select 1 from "matches" m
       where m.id = match_id
         and m.kickoff_utc > now()
-        and now() >= m.kickoff_utc - interval '12 hours'
+        and now() >= m.kickoff_utc - interval '24 hours'
     )
   );
 
--- Update only your own prediction, while unlocked, within the 12h window.
+-- Update only your own prediction, while unlocked, within the 24h window.
 -- Defense-in-depth; the Server Action checks first.
 drop policy if exists "predictions_update_own_unlocked" on "predictions";
 create policy "predictions_update_own_unlocked" on "predictions"
@@ -107,7 +107,7 @@ create policy "predictions_update_own_unlocked" on "predictions"
       select 1 from "matches" m
       where m.id = match_id
         and m.kickoff_utc > now()
-        and now() >= m.kickoff_utc - interval '12 hours'
+        and now() >= m.kickoff_utc - interval '24 hours'
     )
   )
   with check (
@@ -117,7 +117,7 @@ create policy "predictions_update_own_unlocked" on "predictions"
       select 1 from "matches" m
       where m.id = match_id
         and m.kickoff_utc > now()
-        and now() >= m.kickoff_utc - interval '12 hours'
+        and now() >= m.kickoff_utc - interval '24 hours'
     )
   );
 
