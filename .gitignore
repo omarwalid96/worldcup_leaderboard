@@ -43,3 +43,6 @@ next-env.d.ts
 
 # local verification scripts
 gs-verify.local.mjs
+
+# local DB backups
+/backups

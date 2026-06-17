@@ -7,6 +7,7 @@ import {
 } from "@/lib/scoring/grade";
 import { lockKickedOffPredictions } from "@/lib/football/sync";
 import { sendGradingNotifications } from "@/lib/notifications/grading";
+import { hasFreshBackup } from "@/lib/cron/backup-guard";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -22,8 +23,20 @@ async function handle(req: NextRequest) {
   }
   try {
     // ?regrade=1 re-grades all finished matches under the current rules.
+    // DESTRUCTIVE: refuse unless a fresh backup exists (a bad regrade once wiped
+    // real standings). Run `npm run db:backup` first.
     const regrade = new URL(req.url).searchParams.get("regrade") === "1";
     if (regrade) {
+      if (!(await hasFreshBackup())) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "Refusing to regrade: no backup in the last 60 min. Run `npm run db:backup` first.",
+          },
+          { status: 412 }, // Precondition Failed
+        );
+      }
       const grading = await regradeAll();
       await sendGradingNotifications(grading.exactHitUserIds, grading.affectedUserIds);
       return NextResponse.json({ ok: true, regraded: true, grading });
