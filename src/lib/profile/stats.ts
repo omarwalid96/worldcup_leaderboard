@@ -1,16 +1,31 @@
 import "server-only";
-import { and, eq, isNotNull, lt, sql } from "drizzle-orm";
+import { and, eq, gte, isNotNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   predictions,
   standings,
   leagues,
+  profiles,
   userBadges,
   badges,
   pointsHistory,
   rankHistory,
   matches,
 } from "@/db/schema";
+import { RELEASE_DATE_UTC } from "@/lib/time/usday";
+
+// Fallback cutoff if a profile somehow has no createdAt (shouldn't happen).
+const RELEASE = new Date(RELEASE_DATE_UTC);
+
+/** The participation cutoff for a user: when they joined (can't predict before). */
+async function participationSince(userId: string): Promise<Date> {
+  const [p] = await db
+    .select({ createdAt: profiles.createdAt })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
+  return p?.createdAt ?? RELEASE;
+}
 
 export interface ProfileStats {
   totalPoints: number;
@@ -66,8 +81,10 @@ export async function getProfileStats(userId: string): Promise<ProfileStats> {
     .from(predictions)
     .where(eq(predictions.userId, userId));
 
-  // Participation: how many locked/past matches has the user predicted?
+  // Participation: of the matches that locked since the user JOINED, how many
+  // did they predict? (A user can't be penalized for matches before they joined.)
   const now = new Date();
+  const since = await participationSince(userId);
   const [lockedCounts] = await db
     .select({
       lockedAvailable: sql<number>`count(*)::int`,
@@ -78,7 +95,7 @@ export async function getProfileStats(userId: string): Promise<ProfileStats> {
       predictions,
       and(eq(predictions.matchId, matches.id), eq(predictions.userId, userId)),
     )
-    .where(lt(matches.kickoffUtc, now));
+    .where(and(lt(matches.kickoffUtc, now), gte(matches.kickoffUtc, since)));
 
   const graded = counts?.graded ?? 0;
   const hits = counts?.hits ?? 0;
@@ -223,6 +240,7 @@ export interface ParticipationPoint {
  */
 export async function getParticipationHistory(userId: string): Promise<ParticipationPoint[]> {
   const now = new Date();
+  const since = await participationSince(userId);
   const rows = await db
     .select({
       matchday: matches.matchday,
@@ -234,7 +252,7 @@ export async function getParticipationHistory(userId: string): Promise<Participa
       predictions,
       and(eq(predictions.matchId, matches.id), eq(predictions.userId, userId)),
     )
-    .where(lt(matches.kickoffUtc, now))
+    .where(and(lt(matches.kickoffUtc, now), gte(matches.kickoffUtc, since)))
     .groupBy(matches.matchday)
     .orderBy(matches.matchday);
 

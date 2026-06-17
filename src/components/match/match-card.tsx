@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { Lock, Check, ChevronRight, Zap } from "lucide-react";
 import { TeamFlag } from "./team-flag";
 import { KickoffTime, KickoffCountdown } from "./kickoff-time";
+import { CardPicks } from "./card-picks";
 import { cn } from "@/lib/utils";
 import type { MatchWithPrediction } from "@/lib/matches/queries";
 
@@ -164,6 +165,9 @@ export function MatchCard({
           </span>
         ) : null}
       </div>
+
+      {/* Live / finished matches: expand to see everyone's picks inline. */}
+      {!isUpcoming && <CardPicks matchId={match.id} graded={isFinished} />}
     </>
   );
 

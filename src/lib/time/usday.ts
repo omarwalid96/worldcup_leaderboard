@@ -9,6 +9,13 @@ import { formatInTimeZone } from "date-fns-tz";
 export const PREDICTION_WINDOW_HOURS = 12;
 const WINDOW_MS = PREDICTION_WINDOW_HOURS * 60 * 60 * 1000;
 
+/**
+ * App release: participation/engagement only counts matches from here onward
+ * (earlier matches happened before anyone could use the app). Midnight US
+ * Eastern on 2026-06-17 = 04:00 UTC (EDT, UTC-4).
+ */
+export const RELEASE_DATE_UTC = "2026-06-17T04:00:00Z";
+
 /** The instant predictions open for a match (kickoff − 12h). */
 export function predictionOpensAt(kickoffUtc: Date | string): Date {
   const k = typeof kickoffUtc === "string" ? new Date(kickoffUtc) : kickoffUtc;
