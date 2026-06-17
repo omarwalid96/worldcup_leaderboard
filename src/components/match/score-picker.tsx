@@ -166,7 +166,7 @@ export function ScorePicker({
             <div className="relative size-14 overflow-hidden rounded-full border-2 border-gold/75 bg-background shadow-lg shadow-gold/30">
               <img
                 src="/brand-mark.jpg"
-                alt="GroupStage Logo"
+                alt="Eznii Ya Dawly Logo"
                 className="size-full object-cover"
               />
             </div>

@@ -128,7 +128,7 @@ export function PushSettings({
           {!pushSupported ? (
             <p className="text-sm text-muted-foreground">
               Push notifications are not supported in this browser. Try installing
-              GroupStage as an app for full notification support.
+              Eznii Ya Dawly as an app for full notification support.
             </p>
           ) : permission === "denied" ? (
             <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">

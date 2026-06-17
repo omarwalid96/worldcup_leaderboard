@@ -60,7 +60,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="mt-5 max-w-xl text-pretty text-base text-muted-foreground sm:text-lg">
-            GroupStage is a private prediction league for the 2026 World Cup.
+            Eznii Ya Dawly is a private prediction league for the 2026 World Cup.
             Call the scorelines, rack up points, and rise up an animated
             leaderboard that updates the second the final whistle goes.
           </p>
@@ -136,7 +136,7 @@ export default function LandingPage() {
 
       <footer className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-6 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
-          <Trophy className="size-3.5" /> GroupStage
+          <Trophy className="size-3.5" /> Eznii Ya Dawly
         </span>
         <span>A private league. Bragging rights only.</span>
       </footer>

@@ -35,7 +35,7 @@ export default async function SettingsPage() {
       <div>
         <h1 className="font-display text-2xl tracking-tight">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Manage your GroupStage notification preferences.
+          Manage your Eznii Ya Dawly notification preferences.
         </p>
       </div>
 

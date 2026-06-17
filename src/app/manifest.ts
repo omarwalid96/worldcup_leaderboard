@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "GroupStage — World Cup 2026",
-    short_name: "GroupStage",
+    name: "Eznii Ya Dawly — World Cup 2026",
+    short_name: "Eznii Ya Dawly",
     description:
       "Predict scorelines, climb the leaderboard, win bragging rights.",
     start_url: "/dashboard",

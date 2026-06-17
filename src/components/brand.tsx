@@ -14,7 +14,7 @@ export function Brand({
       <span className="relative grid size-8 place-items-center overflow-hidden rounded-lg shadow-lg shadow-primary/20">
         <Image
           src={brandMark}
-          alt="GroupStage"
+          alt="Eznii Ya Dawly"
           fill
           sizes="32px"
           className="object-cover"
@@ -23,7 +23,7 @@ export function Brand({
       </span>
       {showText && (
         <span className="text-lg tracking-tight">
-          Group<span className="text-primary">Stage</span>
+          Eznii <span className="text-primary">Ya Dawly</span>
         </span>
       )}
     </span>

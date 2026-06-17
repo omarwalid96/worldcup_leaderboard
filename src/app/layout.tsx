@@ -39,25 +39,25 @@ const baseUrl = process.env.NEXT_PUBLIC_APP_URL
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
   title: {
-    default: "GroupStage — World Cup 2026 Prediction League",
-    template: "%s · GroupStage",
+    default: "Eznii Ya Dawly — World Cup 2026 Prediction League",
+    template: "%s · Eznii Ya Dawly",
   },
   description:
     "Predict scorelines, climb the leaderboard, win bragging rights. A private World Cup 2026 prediction game for you and your friends.",
-  applicationName: "GroupStage",
+  applicationName: "Eznii Ya Dawly",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "GroupStage" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Eznii Ya Dawly" },
   openGraph: {
-    title: "GroupStage — World Cup 2026 Prediction League",
+    title: "Eznii Ya Dawly — World Cup 2026 Prediction League",
     description: "Predict scorelines, climb the leaderboard, win bragging rights. A private World Cup 2026 prediction game for you and your friends.",
     url: baseUrl,
-    siteName: "GroupStage",
+    siteName: "Eznii Ya Dawly",
     images: [
       {
         url: "/brand-mark.jpg",
         width: 256,
         height: 256,
-        alt: "GroupStage Logo",
+        alt: "Eznii Ya Dawly Logo",
       },
     ],
     locale: "en_US",
@@ -65,7 +65,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary",
-    title: "GroupStage — World Cup 2026 Prediction League",
+    title: "Eznii Ya Dawly — World Cup 2026 Prediction League",
     description: "Predict scorelines, climb the leaderboard, win bragging rights. A private World Cup 2026 prediction game for you and your friends.",
     images: ["/brand-mark.jpg"],
   },
