@@ -27,7 +27,7 @@ export default async function DashboardPage() {
             <span className="grid size-10 place-items-center rounded-xl bg-primary/15 text-primary">
               <Target className="size-5" />
             </span>
-            <CardTitle className="text-base">Make your picks</CardTitle>
+            <CardTitle className="text-base">ازني يا دولي</CardTitle>
           </CardHeader>
           <CardContent className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">

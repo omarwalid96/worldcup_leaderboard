@@ -145,7 +145,7 @@ export function MatchCard({
             )
           ) : tappable ? (
             <span className="inline-flex items-center gap-1 font-semibold text-gold">
-              Eznii
+              ازني يا دولي
               <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
             </span>
           ) : (
