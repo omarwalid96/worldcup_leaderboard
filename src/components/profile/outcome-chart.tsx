@@ -33,15 +33,15 @@ export function OutcomeChart({ data }: Props) {
   ].filter((d) => d.value > 0);
 
   return (
-    <div className="h-44 w-full">
+    <div className="h-56 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
             data={chartData}
             cx="50%"
-            cy="50%"
-            innerRadius="45%"
-            outerRadius="70%"
+            cy="45%"
+            innerRadius="48%"
+            outerRadius="78%"
             paddingAngle={3}
             dataKey="value"
             stroke="none"
@@ -69,6 +69,8 @@ export function OutcomeChart({ data }: Props) {
           <Legend
             iconType="circle"
             iconSize={8}
+            verticalAlign="bottom"
+            height={28}
             formatter={(value) => (
               <span style={{ color: "oklch(0.708 0.004 286)", fontSize: 11 }}>{value}</span>
             )}

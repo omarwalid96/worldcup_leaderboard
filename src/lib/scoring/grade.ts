@@ -207,12 +207,14 @@ export async function recomputeLeagueStandings(leagueId: string): Promise<void> 
   // Compute streaks per user from graded matchdays.
   const streaks = await computeStreaks(userIds);
 
-  // Rank: order by points desc; ties share no special handling beyond order.
+  // Rank: order by points desc. total = manual baseline + graded points, so an
+  // admin-set starting score is preserved across re-grading.
   const rows = userIds.map((userId) => {
     const a = byUser.get(userId);
+    const baseline = prevByUser.get(userId)?.baselinePoints ?? 0;
     return {
       userId,
-      totalPoints: a?.totalPoints ?? 0,
+      totalPoints: baseline + (a?.totalPoints ?? 0),
       exactHits: a?.exactHits ?? 0,
       streak: streaks.get(userId) ?? 0,
     };

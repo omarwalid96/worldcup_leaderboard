@@ -154,6 +154,9 @@ export const standings = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => profiles.id, { onDelete: "cascade" }),
+    // Manual starting points (a baseline set by an admin). total_points =
+    // baseline_points + sum of graded prediction points. Survives re-grading.
+    baselinePoints: integer("baseline_points").notNull().default(0),
     totalPoints: integer("total_points").notNull().default(0),
     rank: integer("rank").notNull().default(0),
     previousRank: integer("previous_rank").notNull().default(0),
