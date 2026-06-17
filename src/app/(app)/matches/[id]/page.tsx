@@ -134,7 +134,15 @@ export default async function PredictPage({
         />
       )}
 
-      <FriendsPicks picks={friendsPicks} currentUserId={profile.id} graded={isGraded} />
+      <FriendsPicks
+        picks={friendsPicks}
+        currentUserId={profile.id}
+        graded={isGraded}
+        live={match.status === "live"}
+        liveHome={match.homeScore}
+        liveAway={match.awayScore}
+        isKnockout={isKnockout}
+      />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import type { FriendPick } from "@/lib/predictions/queries";
+import { basePoints } from "@/lib/scoring";
 
 function initials(name: string) {
   return name
@@ -18,11 +19,31 @@ export function FriendsPicks({
   picks,
   currentUserId,
   graded,
+  live = false,
+  liveHome = null,
+  liveAway = null,
+  isKnockout = false,
 }: {
   picks: FriendPick[];
   currentUserId: string;
   graded: boolean;
+  /** Match is live — show provisional points from the current score. */
+  live?: boolean;
+  liveHome?: number | null;
+  liveAway?: number | null;
+  isKnockout?: boolean;
 }) {
+  const canLiveScore = live && liveHome != null && liveAway != null;
+  function liveProvisional(p: FriendPick): number {
+    return basePoints({
+      homePick: p.homePick,
+      awayPick: p.awayPick,
+      homeActual: liveHome as number,
+      awayActual: liveAway as number,
+      isKnockout,
+    });
+  }
+
   if (picks.length === 0) {
     return (
       <div className="rounded-xl border border-border/60 bg-card/40 p-4 text-center text-sm text-muted-foreground">
@@ -71,7 +92,7 @@ export function FriendsPicks({
               <span className="font-numeric text-xl tabular-nums">
                 {p.homePick}–{p.awayPick}
               </span>
-              {graded && p.pointsAwarded != null && (
+              {graded && p.pointsAwarded != null ? (
                 <span
                   className={cn(
                     "w-12 rounded-full px-2 py-0.5 text-center text-xs font-bold tabular-nums",
@@ -82,7 +103,24 @@ export function FriendsPicks({
                 >
                   {p.pointsAwarded > 0 ? `+${p.pointsAwarded}` : "0"}
                 </span>
-              )}
+              ) : canLiveScore ? (
+                (() => {
+                  const pts = liveProvisional(p);
+                  return (
+                    <span
+                      title="Points if the match ended now"
+                      className={cn(
+                        "w-12 rounded-full px-2 py-0.5 text-center text-xs font-bold italic tabular-nums",
+                        pts > 0
+                          ? "bg-success/10 text-success/80"
+                          : "bg-muted/60 text-muted-foreground/70",
+                      )}
+                    >
+                      {pts > 0 ? `+${pts}` : "0"}
+                    </span>
+                  );
+                })()
+              ) : null}
             </li>
           );
         })}

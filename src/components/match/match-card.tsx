@@ -184,7 +184,16 @@ export function MatchCard({
       </div>
 
       {/* Once locked (or live/finished): expand to see everyone's picks inline. */}
-      {showPicks && <CardPicks matchId={match.id} graded={isFinished} />}
+      {showPicks && (
+        <CardPicks
+          matchId={match.id}
+          graded={isFinished}
+          live={isLive}
+          liveHome={homeScore}
+          liveAway={awayScore}
+          isKnockout={match.stage !== "group"}
+        />
+      )}
     </>
   );
 

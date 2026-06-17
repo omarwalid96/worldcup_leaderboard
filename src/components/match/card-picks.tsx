@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { fetchMatchPicks } from "@/lib/predictions/picks-action";
 import type { FriendPick } from "@/lib/predictions/queries";
+import { basePoints } from "@/lib/scoring";
 
 function initials(name: string) {
   return name
@@ -19,13 +20,44 @@ function initials(name: string) {
 
 /**
  * Inline, tap-to-expand list of every league member's pick for a match.
- * Picks are fetched on demand (so the match list doesn't N+1 query). Shows
- * earned points when the match is graded.
+ * Picks are fetched on demand (so the match list doesn't N+1 query).
+ *
+ * Points pill beside each pick:
+ *   - finished/graded → the real awarded points (`pointsAwarded`)
+ *   - live → PROVISIONAL points computed from the current live score (updates as
+ *     the score changes via LiveRefresher); styled dimmer to flag it's not final.
  */
-export function CardPicks({ matchId, graded }: { matchId: string; graded: boolean }) {
+export function CardPicks({
+  matchId,
+  graded,
+  live = false,
+  liveHome = null,
+  liveAway = null,
+  isKnockout = false,
+}: {
+  matchId: string;
+  graded: boolean;
+  /** Match is live — show provisional points from the current score. */
+  live?: boolean;
+  liveHome?: number | null;
+  liveAway?: number | null;
+  isKnockout?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [picks, setPicks] = useState<FriendPick[] | null>(null);
   const [pending, startTransition] = useTransition();
+
+  // Provisional points if the match ended right now at the current live score.
+  const canLiveScore = live && liveHome != null && liveAway != null;
+  function liveProvisional(p: FriendPick): number {
+    return basePoints({
+      homePick: p.homePick,
+      awayPick: p.awayPick,
+      homeActual: liveHome as number,
+      awayActual: liveAway as number,
+      isKnockout,
+    });
+  }
 
   function toggle(e: React.MouseEvent) {
     // Don't trigger a parent card link/animation.
@@ -86,7 +118,7 @@ export function CardPicks({ matchId, graded }: { matchId: string; graded: boolea
                       <span className="font-numeric text-base tabular-nums">
                         {p.homePick}–{p.awayPick}
                       </span>
-                      {graded && p.pointsAwarded != null && (
+                      {graded && p.pointsAwarded != null ? (
                         <span
                           className={cn(
                             "w-9 rounded-full px-1.5 py-0.5 text-center text-[10px] font-bold tabular-nums",
@@ -97,7 +129,24 @@ export function CardPicks({ matchId, graded }: { matchId: string; graded: boolea
                         >
                           {p.pointsAwarded > 0 ? `+${p.pointsAwarded}` : "0"}
                         </span>
-                      )}
+                      ) : canLiveScore ? (
+                        (() => {
+                          const pts = liveProvisional(p);
+                          return (
+                            <span
+                              title="Points if the match ended now"
+                              className={cn(
+                                "w-9 rounded-full px-1.5 py-0.5 text-center text-[10px] font-bold italic tabular-nums",
+                                pts > 0
+                                  ? "bg-success/10 text-success/80"
+                                  : "bg-muted/60 text-muted-foreground/70",
+                              )}
+                            >
+                              {pts > 0 ? `+${pts}` : "0"}
+                            </span>
+                          );
+                        })()
+                      ) : null}
                     </li>
                   ))}
                 </ul>
