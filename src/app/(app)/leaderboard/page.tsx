@@ -2,36 +2,60 @@ import type { Metadata } from "next";
 import { Trophy, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { RealtimeLeaderboard } from "@/components/leaderboard/realtime-leaderboard";
+import { LeagueSwitcher } from "@/components/leaderboard/league-switcher";
 import { requireProfile } from "@/lib/auth/session";
-import { getMainLeaderboard } from "@/lib/leaderboard/queries";
+import {
+  getLeaderboard,
+  getMainLeaderboard,
+  getUserLeagues,
+} from "@/lib/leaderboard/queries";
 
 export const metadata: Metadata = { title: "Leaderboard" };
 
-export default async function LeaderboardPage() {
+export default async function LeaderboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ league?: string }>;
+}) {
   const profile = await requireProfile();
-  const data = await getMainLeaderboard();
+  const { league: requestedId } = await searchParams;
+
+  const myLeagues = await getUserLeagues(profile.id);
+
+  // Use the requested league only if the user is actually a member; else default.
+  const allowed = requestedId && myLeagues.some((l) => l.id === requestedId);
+  const data = allowed
+    ? await getLeaderboard(requestedId!)
+    : await getMainLeaderboard();
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-            <Trophy className="size-6 text-gold" />
-            {data?.leagueName ?? "Leaderboard"}
+            <Trophy className="size-6 shrink-0 text-gold" />
+            <span className="truncate">{data?.leagueName ?? "Leaderboard"}</span>
           </h1>
           <p className="text-sm text-muted-foreground">
             Live standings · updates the moment results land.
           </p>
         </div>
         {data && (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card/60 px-3 py-1 text-xs text-muted-foreground">
-            <Users className="size-3.5" /> {data.rows.length}
-          </span>
+          <div className="flex shrink-0 items-center gap-2">
+            <LeagueSwitcher
+              leagues={myLeagues.map((l) => ({ id: l.id, name: l.name }))}
+              currentId={data.leagueId}
+            />
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card/60 px-3 py-1 text-xs text-muted-foreground">
+              <Users className="size-3.5" /> {data.rows.length}
+            </span>
+          </div>
         )}
       </div>
 
       {data ? (
         <RealtimeLeaderboard
+          key={data.leagueId}
           leagueId={data.leagueId}
           initialRows={data.rows}
           currentUserId={profile.id}

@@ -45,10 +45,16 @@ drop policy if exists "leagues_delete_owner" on "leagues";
 create policy "leagues_delete_owner" on "leagues"
   for delete to authenticated using (auth.uid() = owner_id);
 
--- Any authenticated user can create a league they own.
+-- Only an admin can create a league (defense-in-depth; the Server Action also
+-- checks). Owner must be the creator.
 drop policy if exists "leagues_insert_self_owner" on "leagues";
-create policy "leagues_insert_self_owner" on "leagues"
-  for insert to authenticated with check (auth.uid() = owner_id);
+drop policy if exists "leagues_insert_admin_owner" on "leagues";
+create policy "leagues_insert_admin_owner" on "leagues"
+  for insert to authenticated
+  with check (
+    auth.uid() = owner_id
+    and exists (select 1 from profiles pf where pf.id = auth.uid() and pf.is_admin)
+  );
 
 drop policy if exists "league_members_read_all" on "league_members";
 create policy "league_members_read_all" on "league_members"
