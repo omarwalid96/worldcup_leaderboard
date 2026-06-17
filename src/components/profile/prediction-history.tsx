@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Zap, Search, X } from "lucide-react";
+import { formatInTimeZone } from "date-fns-tz";
 import { TeamFlag } from "@/components/match/team-flag";
 import { KickoffTime } from "@/components/match/kickoff-time";
 import { Input } from "@/components/ui/input";
@@ -58,6 +59,21 @@ export function PredictionHistory({
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [result, setResult] = useState<ResultFilter>("all");
+  const [day, setDay] = useState("all"); // "yyyy-MM-dd" in the viewer's tz, or "all"
+
+  // Distinct match days (in the viewer's timezone), newest first, for the picker.
+  const days = useMemo(() => {
+    const seen = new Map<string, string>(); // key (yyyy-MM-dd) -> label
+    for (const r of rows) {
+      const key = formatInTimeZone(new Date(r.kickoffUtc), fallbackTz, "yyyy-MM-dd");
+      if (!seen.has(key)) {
+        seen.set(key, formatInTimeZone(new Date(r.kickoffUtc), fallbackTz, "EEE d MMM"));
+      }
+    }
+    return [...seen.entries()]
+      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+      .map(([key, label]) => ({ key, label }));
+  }, [rows, fallbackTz]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -65,6 +81,11 @@ export function PredictionHistory({
       if (status === "finished" && r.status !== "finished") return false;
       if (status === "upcoming" && r.status === "finished") return false;
       if (result !== "all" && resultOf(r) !== result) return false;
+      if (
+        day !== "all" &&
+        formatInTimeZone(new Date(r.kickoffUtc), fallbackTz, "yyyy-MM-dd") !== day
+      )
+        return false;
       if (!q) return true;
       // Filter by country/team name (home or away).
       return (
@@ -72,7 +93,7 @@ export function PredictionHistory({
         r.awayTeam.toLowerCase().includes(q)
       );
     });
-  }, [rows, query, status, result]);
+  }, [rows, query, status, result, day, fallbackTz]);
 
   if (rows.length === 0) {
     return (
@@ -106,6 +127,21 @@ export function PredictionHistory({
             </button>
           )}
         </div>
+
+        {/* Filter by match day */}
+        <select
+          value={day}
+          onChange={(e) => setDay(e.target.value)}
+          aria-label="Filter picks by date"
+          className="h-9 shrink-0 rounded-md border border-input bg-card/40 px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <option value="all">All dates</option>
+          {days.map((d) => (
+            <option key={d.key} value={d.key}>
+              {d.label}
+            </option>
+          ))}
+        </select>
         <div className="inline-flex rounded-lg border border-border/60 bg-card/40 p-0.5">
           {STATUS_TABS.map((t) => (
             <button
