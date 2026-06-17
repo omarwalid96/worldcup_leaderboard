@@ -9,6 +9,15 @@ import { cn } from "@/lib/utils";
 import type { PredictionHistoryRow } from "@/lib/predictions/history";
 
 type StatusFilter = "all" | "finished" | "upcoming";
+type ResultFilter = "all" | "exact" | "correct" | "wrong";
+
+/** Classify a graded row's result; null if not yet graded. */
+function resultOf(r: PredictionHistoryRow): "exact" | "correct" | "wrong" | null {
+  if (r.status !== "finished" || r.pointsAwarded === null) return null;
+  if (r.homeScore != null && r.awayScore != null &&
+      r.homePick === r.homeScore && r.awayPick === r.awayScore) return "exact";
+  return r.pointsAwarded > 0 ? "correct" : "wrong";
+}
 
 function PointsPill({ points }: { points: number | null }) {
   if (points === null) return null;
@@ -32,6 +41,13 @@ const STATUS_TABS: { key: StatusFilter; label: string }[] = [
   { key: "upcoming", label: "Upcoming" },
 ];
 
+const RESULT_TABS: { key: ResultFilter; label: string }[] = [
+  { key: "all", label: "Any result" },
+  { key: "exact", label: "Exact" },
+  { key: "correct", label: "Correct" },
+  { key: "wrong", label: "Wrong" },
+];
+
 export function PredictionHistory({
   rows,
   fallbackTz,
@@ -41,12 +57,14 @@ export function PredictionHistory({
 }) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
+  const [result, setResult] = useState<ResultFilter>("all");
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
       if (status === "finished" && r.status !== "finished") return false;
       if (status === "upcoming" && r.status === "finished") return false;
+      if (result !== "all" && resultOf(r) !== result) return false;
       if (!q) return true;
       // Filter by country/team name (home or away).
       return (
@@ -54,7 +72,7 @@ export function PredictionHistory({
         r.awayTeam.toLowerCase().includes(q)
       );
     });
-  }, [rows, query, status]);
+  }, [rows, query, status, result]);
 
   if (rows.length === 0) {
     return (
@@ -105,6 +123,25 @@ export function PredictionHistory({
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Result filter — what was predicted right (graded picks only) */}
+      <div className="flex flex-wrap gap-1.5">
+        {RESULT_TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setResult(t.key)}
+            className={cn(
+              "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+              result === t.key
+                ? "border-gold/50 bg-gold/15 text-gold"
+                : "border-border/60 text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {filtered.length === 0 ? (
