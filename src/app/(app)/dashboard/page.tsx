@@ -4,14 +4,19 @@ import { CalendarDays, Trophy, Target, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MatchCard } from "@/components/match/match-card";
+import { LeagueLeaders } from "@/components/leaderboard/league-leaders";
 import { requireProfile } from "@/lib/auth/session";
 import { getPredictableMatches } from "@/lib/matches/queries";
+import { getMainLeagueLeaders } from "@/lib/leaderboard/queries";
 
 export const metadata: Metadata = { title: "Home" };
 
 export default async function DashboardPage() {
   const profile = await requireProfile();
-  const openNow = await getPredictableMatches(profile.id);
+  const [openNow, leaders] = await Promise.all([
+    getPredictableMatches(profile.id),
+    getMainLeagueLeaders(),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -19,6 +24,9 @@ export default async function DashboardPage() {
         <p className="text-sm text-muted-foreground">Welcome back,</p>
         <h1 className="text-2xl font-bold tracking-tight">{profile.displayName}</h1>
       </div>
+
+      {/* Current league leader(s) — crowned */}
+      {leaders && <LeagueLeaders data={leaders} />}
 
       {/* Quick actions — these light up as later milestones land */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

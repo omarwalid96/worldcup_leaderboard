@@ -86,3 +86,28 @@ export async function getMainLeaderboard(): Promise<LeaderboardData | null> {
   if (!league) return null;
   return getLeaderboard(league.id);
 }
+
+export interface LeagueLeaders {
+  leagueName: string;
+  points: number;
+  leaders: LeaderboardRow[]; // everyone tied at the top
+}
+
+/**
+ * The current #1 of the Main League — all users tied for the top score (dense
+ * rank 1). Returns null until someone has scored (top points > 0), so we don't
+ * crown anyone at 0–0.
+ */
+export async function getMainLeagueLeaders(): Promise<LeagueLeaders | null> {
+  const data = await getMainLeaderboard();
+  if (!data || data.rows.length === 0) return null;
+
+  const top = Math.max(...data.rows.map((r) => r.totalPoints));
+  if (top <= 0) return null;
+
+  return {
+    leagueName: data.leagueName,
+    points: top,
+    leaders: data.rows.filter((r) => r.totalPoints === top),
+  };
+}
