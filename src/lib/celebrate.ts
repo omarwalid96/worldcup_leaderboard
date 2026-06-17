@@ -64,9 +64,12 @@ export function celebrateExact() {
   confetti({ particleCount: 90, spread: 75, origin: { y: 0.6 }, colors: GOLD });
 }
 
-/** Smaller burst — for a saved pick / smaller win. */
+/**
+ * Saved/updated pick: three quick pulses (synced to the three floating logos
+ * that pop on save) + a small gold confetti burst.
+ */
 export function celebrateSave() {
-  haptic(15);
+  haptic([35, 90, 35, 90, 35]); // buzz, gap, buzz, gap, buzz → 3 pulses ~125ms apart
   if (reducedMotion()) return;
   confetti({ particleCount: 40, spread: 55, origin: { y: 0.7 }, colors: GOLD, scalar: 0.8 });
 }

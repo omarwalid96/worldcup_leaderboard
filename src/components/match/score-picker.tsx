@@ -34,7 +34,7 @@ function Stepper({
         aria-label={`Increase ${label}`}
         disabled={disabled || value >= 20}
         onClick={() => {
-          haptic(10);
+          haptic(30);
           onChange(value + 1);
         }}
         className="grid size-9 place-items-center rounded-full bg-secondary text-foreground transition-colors hover:bg-accent disabled:opacity-40"
@@ -49,7 +49,7 @@ function Stepper({
         aria-label={`Decrease ${label}`}
         disabled={disabled || value <= 0}
         onClick={() => {
-          haptic(10);
+          haptic(30);
           onChange(Math.max(0, value - 1));
         }}
         className="grid size-9 place-items-center rounded-full bg-secondary text-foreground transition-colors hover:bg-accent disabled:opacity-40"
