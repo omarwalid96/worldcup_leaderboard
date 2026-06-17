@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
 import { Lock, Check, ChevronRight, Zap } from "lucide-react";
@@ -76,7 +77,18 @@ export function MatchCard({
   const homeWon = isFinished && (homeScore ?? 0) > (awayScore ?? 0);
   const awayWon = isFinished && (awayScore ?? 0) > (homeScore ?? 0);
 
-  const tappable = isUpcoming && predictable && !prediction?.locked;
+  // Has kickoff passed? Server-authoritative `prediction.locked` is the SSR-safe
+  // base; after mount we also check the clock so a kicked-off-but-still-
+  // "scheduled" match (cron status lag) is treated as locked. Starting from the
+  // SSR value avoids a hydration mismatch.
+  const [kickedOff, setKickedOff] = useState<boolean>(prediction?.locked === true);
+  useEffect(() => {
+    if (new Date(match.kickoffUtc).getTime() <= Date.now()) setKickedOff(true);
+  }, [match.kickoffUtc]);
+
+  // Picks are visible once the match has locked OR the cron marked it live/finished.
+  const showPicks = !isUpcoming || kickedOff;
+  const tappable = isUpcoming && predictable && !kickedOff;
 
   const inner = (
     <>
@@ -149,6 +161,10 @@ export function MatchCard({
               ازني يا دولي
               <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
             </span>
+          ) : kickedOff ? (
+            <span className="inline-flex items-center gap-1 font-medium text-muted-foreground">
+              <Lock className="size-3.5" /> Locked
+            </span>
           ) : (
             <span className="text-muted-foreground">Opens 24h before</span>
           )
@@ -166,8 +182,8 @@ export function MatchCard({
         ) : null}
       </div>
 
-      {/* Live / finished matches: expand to see everyone's picks inline. */}
-      {!isUpcoming && <CardPicks matchId={match.id} graded={isFinished} />}
+      {/* Once locked (or live/finished): expand to see everyone's picks inline. */}
+      {showPicks && <CardPicks matchId={match.id} graded={isFinished} />}
     </>
   );
 
