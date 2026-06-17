@@ -78,13 +78,26 @@ export function LeaderboardTable({
     );
   }
 
+  // Derive the displayed rank from position (rows are ordered by points), with
+  // standard competition ranking for ties. The stored `rank` can be 0/stale for
+  // a newly-added member, so we never trust it for display.
+  const displayRanks: number[] = [];
+  rows.forEach((row, i) => {
+    if (i > 0 && row.totalPoints === rows[i - 1].totalPoints) {
+      displayRanks[i] = displayRanks[i - 1];
+    } else {
+      displayRanks[i] = i + 1;
+    }
+  });
+
   return (
     <LayoutGroup>
       <motion.ol className="flex flex-col gap-2" layout>
         <AnimatePresence initial={false}>
-          {rows.map((row) => {
+          {rows.map((row, i) => {
+            const rank = displayRanks[i];
             const isMe = row.userId === currentUserId;
-            const isPodium = row.rank <= 3;
+            const isPodium = rank <= 3;
             return (
               <motion.li
                 key={row.userId}
@@ -103,7 +116,7 @@ export function LeaderboardTable({
                       : "border-border/50 bg-card/50",
                 )}
               >
-                <RankBadge rank={row.rank} />
+                <RankBadge rank={rank} />
 
                 <Link
                   href={`/u/${row.username}`}
@@ -116,7 +129,7 @@ export function LeaderboardTable({
                     <AvatarFallback
                       className={cn(
                         "text-xs font-semibold",
-                        row.rank === 1 ? "bg-gold/20 text-gold" : "bg-secondary text-foreground",
+                        rank === 1 ? "bg-gold/20 text-gold" : "bg-secondary text-foreground",
                       )}
                     >
                       {initials(row.displayName)}
@@ -151,13 +164,13 @@ export function LeaderboardTable({
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <Trend rank={row.rank} previousRank={row.previousRank} />
+                  <Trend rank={rank} previousRank={row.previousRank} />
                   <div className="text-right">
                     <CountUp
                       value={row.totalPoints}
                       className={cn(
                         "font-numeric text-2xl font-semibold leading-none tabular-nums",
-                        row.rank === 1 ? "text-gold" : "text-foreground",
+                        rank === 1 ? "text-gold" : "text-foreground",
                       )}
                     />
                     <span className="ml-0.5 text-[11px] text-muted-foreground">pts</span>

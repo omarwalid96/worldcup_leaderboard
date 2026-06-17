@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requireProfile } from "@/lib/auth/session";
 import { PushSettings } from "@/components/notifications/push-settings";
 import { AvatarUpload } from "@/components/avatar/avatar-upload";
+import { NameSettings } from "@/components/profile/name-settings";
 import { env } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -35,9 +36,14 @@ export default async function SettingsPage() {
       <div>
         <h1 className="font-display text-2xl tracking-tight">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Manage your Eznii Ya Dawly notification preferences.
+          Manage your profile and notification preferences.
         </p>
       </div>
+
+      <NameSettings
+        currentName={profile.displayName}
+        username={profile.username}
+      />
 
       <AvatarUpload
         currentUrl={profile.avatarUrl}

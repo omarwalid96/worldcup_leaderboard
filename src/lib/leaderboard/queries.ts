@@ -58,7 +58,9 @@ export async function getLeaderboard(
     .from(standings)
     .innerJoin(profiles, eq(profiles.id, standings.userId))
     .where(eq(standings.leagueId, leagueId))
-    .orderBy(asc(standings.rank), desc(standings.totalPoints));
+    // Order by points (the source of truth), not stored rank — a not-yet-ranked
+    // row (rank=0, e.g. a newly added member) must never sort above everyone.
+    .orderBy(desc(standings.totalPoints), asc(profiles.displayName));
 
   return {
     leagueId: league.id,
