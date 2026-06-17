@@ -65,6 +65,34 @@ See [`.env.example`](./.env.example) for the full list. The essentials:
   `FOOTBALL_PROVIDER` env var without touching app code.
 - **All times stored in UTC**, converted to the user's timezone only for display.
 - **RLS** restricts each user to editing only their own predictions/profile.
+- See [`CLAUDE.md`](./CLAUDE.md) for the full agent/onboarding guide.
+
+## ⚠️ Testing policy (read before touching the DB)
+
+**Local development and production share the same cloud Supabase database**
+(`DATABASE_URL` in `.env.local` points at the live project). There is no separate
+dev database. Real users have real predictions and standings.
+
+**Therefore:**
+
+- **Never** seed test predictions, run grading/`regrade`, or reset standings
+  against the live tables (`predictions`, `standings`, `matches`). Grading
+  recomputes standings and will overwrite/destroy real state.
+- For any test that needs data, **create separate testing tables** — e.g.
+  `test_predictions`, `test_standings` (mirror the real columns), or a throwaway
+  `test_*` league row — exercise your logic there, then **drop them when done**:
+
+  ```sql
+  create table if not exists test_predictions (like predictions including all);
+  -- ... run your test against test_predictions ...
+  drop table if exists test_predictions;
+  ```
+
+- Any change to live data requires **explicit owner approval** for that specific
+  action. Read-only inspection is always fine.
+- `total_points = standings.baseline_points + sum(graded prediction points)`, so
+  an admin-set starting score survives re-grading. Set baselines deliberately,
+  never by re-running grading on test data.
 
 ## Deployment & cron
 
