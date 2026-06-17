@@ -78,16 +78,15 @@ export function LeaderboardTable({
     );
   }
 
-  // Derive the displayed rank from position (rows are ordered by points), with
-  // standard competition ranking for ties. The stored `rank` can be 0/stale for
-  // a newly-added member, so we never trust it for display.
+  // Derive the displayed rank from points using DENSE ranking (no gaps after
+  // ties): 7,7,6,5,4,4,4,0,0 → 1,1,2,3,4,4,4,5,5. Rows are ordered by points,
+  // so rank increments once per distinct points value. The stored `rank` can be
+  // 0/stale for a newly-added member, so we never trust it for display.
   const displayRanks: number[] = [];
+  let dense = 0;
   rows.forEach((row, i) => {
-    if (i > 0 && row.totalPoints === rows[i - 1].totalPoints) {
-      displayRanks[i] = displayRanks[i - 1];
-    } else {
-      displayRanks[i] = i + 1;
-    }
+    if (i === 0 || row.totalPoints !== rows[i - 1].totalPoints) dense += 1;
+    displayRanks[i] = dense;
   });
 
   return (

@@ -248,12 +248,11 @@ export async function recomputeLeagueStandings(leagueId: string): Promise<void> 
 
   let rank = 0;
   let lastPoints: number | null = null;
-  let seen = 0;
   for (const r of rows) {
-    seen++;
-    // Standard competition ranking (1,2,2,4).
+    // Dense ranking (1,1,2,3,...): increment once per distinct points value, no
+    // gaps after ties. Matches the leaderboard's displayed rank.
     if (lastPoints === null || r.totalPoints !== lastPoints) {
-      rank = seen;
+      rank += 1;
       lastPoints = r.totalPoints;
     }
     const prev = prevByUser.get(r.userId);
