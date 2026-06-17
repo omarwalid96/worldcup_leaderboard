@@ -1,4 +1,8 @@
+"use client";
+
+import { useEffect, useRef } from "react";
 import Link from "next/link";
+import confetti from "canvas-confetti";
 import { Crown } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { LeagueLeaders } from "@/lib/leaderboard/queries";
@@ -12,54 +16,77 @@ function initials(name: string) {
     .toUpperCase();
 }
 
+const GOLD = ["#F2D27A", "#E2B64B", "#C8A24B", "#FFFFFF"];
+
 /**
  * Home-page spotlight for the current Main League leader(s) — crowned avatar(s).
- * Handles ties (dense rank 1 can be shared). Tapping a leader opens their profile.
+ * Compact for mobile. Fires a small gold confetti burst from each side of the
+ * box on mount (respects reduced-motion). Handles ties (rank 1 can be shared).
  */
 export function LeagueLeaders({ data }: { data: LeagueLeaders }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const fired = useRef(false);
+
+  useEffect(() => {
+    if (fired.current) return;
+    fired.current = true;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const el = boxRef.current;
+    if (!el) return;
+
+    // Confetti origins anchored to the box's left & right edges.
+    const r = el.getBoundingClientRect();
+    const yMid = (r.top + r.height * 0.5) / window.innerHeight;
+    const leftX = r.left / window.innerWidth;
+    const rightX = r.right / window.innerWidth;
+
+    const common = { particleCount: 22, spread: 50, startVelocity: 28, colors: GOLD, scalar: 0.7, ticks: 90 } as const;
+    confetti({ ...common, angle: 60, origin: { x: leftX, y: yMid } });
+    confetti({ ...common, angle: 120, origin: { x: rightX, y: yMid } });
+  }, []);
+
   const multiple = data.leaders.length > 1;
 
   return (
-    <section className="bg-gold-gradient/0 relative overflow-hidden rounded-2xl border border-gold/30 bg-card/70 p-5">
-      {/* warm glow */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_80%_at_50%_0%,oklch(0.796_0.133_86.3/0.12),transparent)]" />
-      <div className="relative flex flex-col items-center gap-3 text-center">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-gold">
+    <section
+      ref={boxRef}
+      className="relative overflow-hidden rounded-2xl border border-gold/30 bg-card/70 px-4 py-3"
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_90%_at_50%_0%,oklch(0.796_0.133_86.3/0.12),transparent)]" />
+      <div className="relative flex flex-col items-center gap-2 text-center">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-gold">
           {data.leagueName} {multiple ? "leaders" : "leader"}
+          <span className="ml-1.5 font-numeric text-sm text-gold">
+            {data.points}
+            <span className="ml-0.5 font-sans text-[10px] text-muted-foreground">pts</span>
+          </span>
         </span>
 
-        <div className="flex flex-wrap items-end justify-center gap-5">
+        <div className="flex flex-wrap items-start justify-center gap-x-5 gap-y-2">
           {data.leaders.map((l) => (
             <Link
               key={l.userId}
               href={`/u/${l.username}`}
-              className="flex flex-col items-center gap-1.5"
+              className="flex flex-col items-center gap-1"
             >
               <div className="relative">
                 <Crown
-                  className="absolute -top-3.5 left-1/2 size-5 -translate-x-1/2 fill-gold text-gold drop-shadow"
+                  className="absolute -top-2.5 left-1/2 size-3.5 -translate-x-1/2 fill-gold text-gold drop-shadow"
                   aria-hidden
                 />
-                <Avatar className="size-16 border-2 border-gold shadow-lg shadow-gold/30">
+                <Avatar className="size-11 border-2 border-gold shadow-md shadow-gold/30">
                   {l.avatarUrl && <AvatarImage src={l.avatarUrl} alt={l.displayName} />}
-                  <AvatarFallback className="bg-gold/15 text-lg font-semibold text-gold">
+                  <AvatarFallback className="bg-gold/15 text-sm font-semibold text-gold">
                     {initials(l.displayName)}
                   </AvatarFallback>
                 </Avatar>
               </div>
-              <span className="max-w-24 truncate text-sm font-semibold">
+              <span className="max-w-20 truncate text-xs font-medium">
                 {l.displayName}
               </span>
             </Link>
           ))}
         </div>
-
-        <span className="font-numeric text-3xl leading-none text-gold">
-          {data.points}
-          <span className="ml-1 align-middle text-xs font-sans text-muted-foreground">
-            pts
-          </span>
-        </span>
       </div>
     </section>
   );
