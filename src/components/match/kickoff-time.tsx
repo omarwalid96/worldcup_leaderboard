@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { formatInTimeZone } from "date-fns-tz";
+import { cn } from "@/lib/utils";
 
 /**
  * Renders a kickoff instant in the viewer's own timezone.
@@ -40,34 +41,70 @@ export function KickoffTime({
   );
 }
 
-/** A short relative "in 2h" / "kicks off soon" hint. */
-export function KickoffCountdown({
+/** Minutes before kickoff that the live mm:ss + urgent pulse kick in. */
+const URGENT_MINUTES = 10;
+
+/**
+ * Prediction countdown to the lock (kickoff). Coarse ("in 2h"/"in 30m") until
+ * the final 10 minutes, then a live ticking mm:ss with an urgent red pulse —
+ * the "about to close" heartbeat. Renders nothing once locked.
+ */
+export function PredictionCountdown({
   kickoffUtc,
   className,
+  withLabel = false,
 }: {
   kickoffUtc: string | Date;
   className?: string;
+  /** Prefix with "Closes " (for the predict page). Cards omit it. */
+  withLabel?: boolean;
 }) {
-  const [label, setLabel] = useState<string>("");
+  const [diff, setDiff] = useState<number | null>(null);
 
   useEffect(() => {
     const target = (typeof kickoffUtc === "string" ? new Date(kickoffUtc) : kickoffUtc).getTime();
-    const tick = () => {
-      const diff = target - Date.now();
-      if (diff <= 0) {
-        setLabel("");
-        return;
-      }
-      const mins = Math.floor(diff / 60000);
-      if (mins < 60) setLabel(`in ${mins}m`);
-      else if (mins < 60 * 24) setLabel(`in ${Math.floor(mins / 60)}h`);
-      else setLabel(`in ${Math.floor(mins / (60 * 24))}d`);
-    };
+    const tick = () => setDiff(target - Date.now());
     tick();
-    const id = setInterval(tick, 30_000);
+    // Tick every second inside the urgent window, else every 30s.
+    const id = setInterval(() => {
+      const d = target - Date.now();
+      setDiff(d);
+    }, 1000);
     return () => clearInterval(id);
   }, [kickoffUtc]);
 
-  if (!label) return null;
-  return <span className={className}>{label}</span>;
+  if (diff == null || diff <= 0) return null;
+
+  const totalSec = Math.floor(diff / 1000);
+  const mins = Math.floor(totalSec / 60);
+  const urgent = mins < URGENT_MINUTES;
+
+  let text: string;
+  if (urgent) {
+    const mm = Math.floor(totalSec / 60);
+    const ss = totalSec % 60;
+    text = `${mm}:${ss.toString().padStart(2, "0")}`;
+  } else if (mins < 60) {
+    text = `${mins}m`;
+  } else if (mins < 60 * 24) {
+    text = `${Math.floor(mins / 60)}h`;
+  } else {
+    text = `${Math.floor(mins / (60 * 24))}d`;
+  }
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 tabular-nums transition-colors",
+        urgent ? "font-semibold text-live" : "text-primary",
+        className,
+      )}
+    >
+      {urgent && (
+        <span className="size-1.5 rounded-full bg-live animate-live-pulse" aria-hidden />
+      )}
+      {withLabel ? "Closes " : ""}
+      {text}
+    </span>
+  );
 }

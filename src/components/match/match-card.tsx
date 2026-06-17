@@ -4,7 +4,7 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import { Lock, Check, ChevronRight, Zap } from "lucide-react";
 import { TeamFlag } from "./team-flag";
-import { KickoffTime, KickoffCountdown } from "./kickoff-time";
+import { KickoffTime, PredictionCountdown } from "./kickoff-time";
 import { CardPicks } from "./card-picks";
 import { cn } from "@/lib/utils";
 import type { MatchWithPrediction } from "@/lib/matches/queries";
@@ -112,7 +112,7 @@ export function MatchCard({
         {isUpcoming ? (
           <span className="text-muted-foreground">
             <KickoffTime kickoffUtc={match.kickoffUtc} fallbackTz={userTz} format="HH:mm" />
-            <KickoffCountdown kickoffUtc={match.kickoffUtc} className="ml-1.5 text-primary" />
+            <PredictionCountdown kickoffUtc={match.kickoffUtc} className="ml-1.5" />
           </span>
         ) : (
           <span className="text-muted-foreground">

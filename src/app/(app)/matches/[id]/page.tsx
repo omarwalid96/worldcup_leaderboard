@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowLeft, MapPin } from "lucide-react";
 import { ScorePicker } from "@/components/match/score-picker";
-import { KickoffTime } from "@/components/match/kickoff-time";
+import { KickoffTime, PredictionCountdown } from "@/components/match/kickoff-time";
 import { FriendsPicks } from "@/components/match/friends-picks";
 import { MatchAdmin } from "@/components/admin/match-admin";
 import { requireProfile } from "@/lib/auth/session";
@@ -75,6 +75,14 @@ export default async function PredictPage({
           )}
         </div>
       </div>
+
+      {/* Live countdown to the lock — coarse until the final 10 min, then a
+          ticking mm:ss with an urgent red pulse. */}
+      {editable && (
+        <div className="flex items-center justify-center rounded-xl border border-border/60 bg-card/50 py-2.5 text-sm">
+          <PredictionCountdown kickoffUtc={match.kickoffUtc} withLabel />
+        </div>
+      )}
 
       <ScorePicker
         matchId={match.id}
