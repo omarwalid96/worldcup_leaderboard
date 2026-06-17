@@ -1,6 +1,8 @@
-# CLAUDE.md — agent guide for "Eznii Ya Dawly"
+# CLAUDE.md
 
-Read this first. It's the fast-path context for working in this repo.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+Agent guide for **"Eznii Ya Dawly"** — read this first; it's the fast-path context.
 
 ## What this app is
 A private **World Cup 2026 score-prediction league** for a group of friends.
@@ -10,6 +12,25 @@ Supabase (Postgres + Auth + Realtime + Storage).
 
 Brand name (user-facing): **Eznii Ya Dawly**. (Some code comments still say the
 old name "GroupStage" — harmless.)
+
+## Commands
+Always `source "$HOME/.nvm/nvm.sh" && nvm use 20` first (Node 18 default breaks builds).
+
+```bash
+npm run dev          # dev server (Turbopack off)
+npm run build        # production build (also runs the type check Next does)
+npm run start        # serve the production build (use PORT=<n> to pick a port)
+npm run typecheck    # tsc --noEmit  — keep at 0 errors
+npm run lint         # eslint        — keep at 0 errors
+```
+
+**Tests:** there is no test framework configured (`npm test` does not exist).
+Pure logic (e.g. scoring in `src/lib/scoring/index.ts`) is verified with
+throwaway `node --env-file=.env.local one-off.mjs` scripts; UI is verified with
+puppeteer-core + system Chrome (see "When verifying UI"). The definitive
+green-light is `typecheck` + `lint` + `build` all passing.
+
+DB / admin scripts (all load `.env.local`): see "Scripts" below.
 
 ## Stack
 - **Next.js 15** (App Router, RSC, Server Actions), **TypeScript strict**
@@ -98,13 +119,18 @@ old name "GroupStage" — harmless.)
 
 ## Key directories
 - `src/app/(app)/*` — authenticated pages (dashboard, matches, matches/[id],
-  leaderboard, profile, settings, u/[username]); `layout.tsx` guards via
-  `requireProfile()`.
-- `src/lib/{scoring,football,predictions,leaderboard,profile,notifications,
-  avatar,cron,time,auth,supabase}` — domain logic.
-- `src/components/{match,leaderboard,profile,avatar,layout,notifications,ui}`.
-- `drizzle/*.sql` — migrations (0000 schema, 0001 RLS+trigger, then features).
-  NOTE: there are two `0006_*` files (numbering clash, harmless — applied lexically).
+  leaderboard, leagues, profile, settings, u/[username]); `layout.tsx` guards via
+  `requireProfile()`. `src/app/api/cron/{sync,grade,notify}` — cron endpoints.
+- `src/lib/{scoring,football,predictions,leaderboard,leagues,profile,
+  notifications,avatar,cron,time,auth,supabase}` — domain logic.
+- `src/components/{match,leaderboard,leagues,profile,avatar,layout,
+  notifications,ui}`.
+- `drizzle/*.sql` — migrations: `0000` schema, `0001` RLS + auth trigger +
+  cross-schema FK, then feature migrations. NOTE: migration filenames are
+  applied **lexically** by `scripts/migrate.ts` (not drizzle-kit), and there are
+  duplicate `0006_*` names (harmless — order within a number doesn't matter here).
+  Each is idempotent (`IF NOT EXISTS` / guarded). RLS lives only in SQL, never
+  in `schema.ts`.
 
 ## Scripts (all read `.env.local`)
 - `db:seed` — upsert fixtures + badges from the provider
