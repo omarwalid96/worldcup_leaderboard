@@ -73,8 +73,8 @@ drop policy if exists "predictions_read_all" on "predictions";
 create policy "predictions_read_all" on "predictions"
   for select to authenticated using (true); -- league members can see each other's picks
 
--- Insert only your own prediction, for a match that has NOT kicked off AND is
--- on the current US Eastern calendar day (the prediction window).
+-- Insert only your own prediction, for a match within the 12h pre-kickoff
+-- prediction window (now >= kickoff - 12h AND kickoff > now).
 drop policy if exists "predictions_insert_own_unlocked" on "predictions";
 create policy "predictions_insert_own_unlocked" on "predictions"
   for insert to authenticated
@@ -85,13 +85,12 @@ create policy "predictions_insert_own_unlocked" on "predictions"
       select 1 from "matches" m
       where m.id = match_id
         and m.kickoff_utc > now()
-        and (m.kickoff_utc at time zone 'America/New_York')::date
-            = (now() at time zone 'America/New_York')::date
+        and now() >= m.kickoff_utc - interval '12 hours'
     )
   );
 
--- Update only your own prediction, while unlocked, before kickoff, and only on
--- the current US Eastern day. Defense-in-depth; the Server Action checks first.
+-- Update only your own prediction, while unlocked, within the 12h window.
+-- Defense-in-depth; the Server Action checks first.
 drop policy if exists "predictions_update_own_unlocked" on "predictions";
 create policy "predictions_update_own_unlocked" on "predictions"
   for update to authenticated
@@ -102,8 +101,7 @@ create policy "predictions_update_own_unlocked" on "predictions"
       select 1 from "matches" m
       where m.id = match_id
         and m.kickoff_utc > now()
-        and (m.kickoff_utc at time zone 'America/New_York')::date
-            = (now() at time zone 'America/New_York')::date
+        and now() >= m.kickoff_utc - interval '12 hours'
     )
   )
   with check (
@@ -113,8 +111,7 @@ create policy "predictions_update_own_unlocked" on "predictions"
       select 1 from "matches" m
       where m.id = match_id
         and m.kickoff_utc > now()
-        and (m.kickoff_utc at time zone 'America/New_York')::date
-            = (now() at time zone 'America/New_York')::date
+        and now() >= m.kickoff_utc - interval '12 hours'
     )
   );
 

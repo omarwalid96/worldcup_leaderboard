@@ -114,19 +114,19 @@ export async function getTodayMatches(): Promise<Match[]> {
 }
 
 /**
- * Matches on the current US Eastern calendar day (the prediction window),
- * joined with the user's prediction. The whole tournament is US-anchored, so
- * "today" is ET — not the user's local day.
+ * Matches currently in the prediction window — within 12h before kickoff and
+ * not yet started — joined with the user's prediction. These are the matches a
+ * user can predict right now.
  */
-export async function getUsTodayMatches(
+export async function getPredictableMatches(
   userId: string,
 ): Promise<MatchWithPrediction[]> {
   const rows = await db
     .select()
     .from(matches)
     .where(
-      sql`(${matches.kickoffUtc} at time zone 'America/New_York')::date
-          = (now() at time zone 'America/New_York')::date`,
+      sql`now() >= ${matches.kickoffUtc} - interval '12 hours'
+          and now() < ${matches.kickoffUtc}`,
     )
     .orderBy(asc(matches.kickoffUtc));
 

@@ -53,9 +53,9 @@ function TeamRow({
 
 /**
  * Match card with three visual states (scheduled / live / finished).
- * When `predictable` (match is on the US-Eastern day and hasn't locked), the
- * WHOLE card is a tappable link to the prediction page with a snappy press
- * animation. Otherwise it's static.
+ * When `predictable` (within 12h of kickoff and not yet locked), the WHOLE card
+ * is a tappable link to the prediction page with a snappy press animation.
+ * Otherwise it's static.
  */
 export function MatchCard({
   match,
@@ -64,7 +64,7 @@ export function MatchCard({
 }: {
   match: MatchWithPrediction;
   userTz: string;
-  /** True only when the match is on the current US-Eastern day and not locked. */
+  /** True only when the match is in the 12h pre-kickoff window and not locked. */
   predictable?: boolean;
 }) {
   const { status, homeScore, awayScore, prediction } = match;
@@ -149,7 +149,7 @@ export function MatchCard({
               <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
             </span>
           ) : (
-            <span className="text-muted-foreground">Opens on matchday</span>
+            <span className="text-muted-foreground">Opens 12h before</span>
           )
         ) : prediction?.pointsAwarded != null ? (
           <span

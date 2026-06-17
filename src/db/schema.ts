@@ -192,6 +192,33 @@ export const userBadges = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.badgeId] })],
 );
 
+/** Per-user rank snapshot per matchday per league, for the rank-over-time chart. */
+export const rankHistory = pgTable(
+  "rank_history",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => leagues.id, { onDelete: "cascade" }),
+    matchday: integer("matchday").notNull(),
+    rank: integer("rank").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("rank_history_user_idx").on(t.userId),
+    uniqueIndex("rank_history_user_league_matchday_unique").on(
+      t.userId,
+      t.leagueId,
+      t.matchday,
+    ),
+  ],
+);
+
 /** Append-only points ledger powering the profile "points over time" chart. */
 export const pointsHistory = pgTable(
   "points_history",
@@ -261,3 +288,4 @@ export type Match = typeof matches.$inferSelect;
 export type Prediction = typeof predictions.$inferSelect;
 export type Standing = typeof standings.$inferSelect;
 export type Badge = typeof badges.$inferSelect;
+export type RankHistory = typeof rankHistory.$inferSelect;

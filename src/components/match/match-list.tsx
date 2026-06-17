@@ -1,7 +1,7 @@
 import { MatchCard } from "./match-card";
 import { KickoffTime } from "./kickoff-time";
 import type { MatchWithPrediction } from "@/lib/matches/queries";
-import { isUsToday } from "@/lib/time/usday";
+import { isPredictable } from "@/lib/time/usday";
 
 /** Groups matches into day buckets (by UTC date) and renders a card grid per day. */
 export function MatchList({
@@ -37,7 +37,7 @@ export function MatchList({
                 key={m.id}
                 match={m}
                 userTz={userTz}
-                predictable={isUsToday(m.kickoffUtc)}
+                predictable={isPredictable(m.kickoffUtc)}
               />
             ))}
           </div>

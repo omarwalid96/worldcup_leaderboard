@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireProfile } from "@/lib/auth/session";
 import { PushSettings } from "@/components/notifications/push-settings";
+import { AvatarUpload } from "@/components/avatar/avatar-upload";
 import { env } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -37,6 +38,11 @@ export default async function SettingsPage() {
           Manage your GroupStage notification preferences.
         </p>
       </div>
+
+      <AvatarUpload
+        currentUrl={profile.avatarUrl}
+        displayName={profile.displayName}
+      />
 
       <PushSettings
         vapidPublicKey={vapidPublicKey}

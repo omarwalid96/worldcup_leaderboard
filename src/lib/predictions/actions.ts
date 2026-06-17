@@ -48,18 +48,17 @@ export async function savePrediction(input: {
   const { matchId, homePick, awayPick, isDoubleDown } = parsed.data;
 
   // Re-read the match and check, using the DB clock (never the client):
-  //  - open: kickoff hasn't passed (lock rule)
-  //  - usToday: the match is on the CURRENT US Eastern calendar day
-  // Both computed server-side in the match's/now's ET date.
+  //  - open:   kickoff hasn't passed (lock rule)
+  //  - inWindow: now is within the 12h pre-kickoff prediction window
   const [match] = await db
     .select({
       id: matches.id,
       kickoffUtc: matches.kickoffUtc,
       matchday: matches.matchday,
       open: sql<boolean>`(${matches.kickoffUtc} > now())`,
-      usToday: sql<boolean>`(
-        (${matches.kickoffUtc} at time zone 'America/New_York')::date
-        = (now() at time zone 'America/New_York')::date
+      inWindow: sql<boolean>`(
+        now() >= ${matches.kickoffUtc} - interval '12 hours'
+        and now() < ${matches.kickoffUtc}
       )`,
     })
     .from(matches)
@@ -67,14 +66,14 @@ export async function savePrediction(input: {
     .limit(1);
 
   if (!match) return { ok: false, error: "Match not found." };
-  if (!match.usToday) {
-    return {
-      ok: false,
-      error: "You can only predict matches scheduled for today (US Eastern).",
-    };
-  }
   if (!match.open) {
     return { ok: false, error: "This match has kicked off — picks are locked." };
+  }
+  if (!match.inWindow) {
+    return {
+      ok: false,
+      error: "Predictions open 12 hours before kickoff.",
+    };
   }
 
   // Enforce one double-down per matchday: if turning this on, clear any other

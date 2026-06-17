@@ -1,27 +1,40 @@
 import { formatInTimeZone } from "date-fns-tz";
 
 /**
- * The tournament is US-anchored. A prediction "day" is the calendar day in US
- * Eastern Time — NOT the user's local day. So a user at 1am local (already the
- * "next day" for them) still predicts the matches on the current ET day.
+ * Prediction window: a pick can be created/edited starting 12 hours before
+ * kickoff and locks at kickoff. "12h before kickoff" is a fixed UTC instant
+ * (the same moment for everyone) — a user's timezone only affects how that
+ * open-time is displayed, not when it opens.
  */
-export const US_TIMEZONE = "America/New_York";
+export const PREDICTION_WINDOW_HOURS = 12;
+const WINDOW_MS = PREDICTION_WINDOW_HOURS * 60 * 60 * 1000;
 
-/** The current ET calendar date as "yyyy-MM-dd". */
-export function currentUsDate(now: Date = new Date()): string {
-  return formatInTimeZone(now, US_TIMEZONE, "yyyy-MM-dd");
-}
-
-/** The ET calendar date ("yyyy-MM-dd") for a given instant. */
-export function usDateOf(instant: Date | string): string {
-  const d = typeof instant === "string" ? new Date(instant) : instant;
-  return formatInTimeZone(d, US_TIMEZONE, "yyyy-MM-dd");
+/** The instant predictions open for a match (kickoff − 12h). */
+export function predictionOpensAt(kickoffUtc: Date | string): Date {
+  const k = typeof kickoffUtc === "string" ? new Date(kickoffUtc) : kickoffUtc;
+  return new Date(k.getTime() - WINDOW_MS);
 }
 
 /**
- * True if `kickoffUtc` falls on the same ET calendar day as `now`.
- * This is the "predictable today" gate (kickoff-lock still applies on top).
+ * True when a match is currently predictable: within the 12h pre-kickoff window
+ * and not yet kicked off. Server-authoritative (uses the passed `now`, default
+ * the server clock). The kickoff lock still applies as the upper bound.
  */
-export function isUsToday(kickoffUtc: Date | string, now: Date = new Date()): boolean {
-  return usDateOf(kickoffUtc) === currentUsDate(now);
+export function isPredictable(
+  kickoffUtc: Date | string,
+  now: Date = new Date(),
+): boolean {
+  const k = typeof kickoffUtc === "string" ? new Date(kickoffUtc) : kickoffUtc;
+  const opens = k.getTime() - WINDOW_MS;
+  const t = now.getTime();
+  return t >= opens && t < k.getTime();
+}
+
+/** Display the open-time in the user's timezone (e.g. "Wed 17 · 09:00"). */
+export function formatOpensAt(
+  kickoffUtc: Date | string,
+  tz: string,
+  fmt = "EEE d · HH:mm",
+): string {
+  return formatInTimeZone(predictionOpensAt(kickoffUtc), tz, fmt);
 }

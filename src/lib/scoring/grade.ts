@@ -7,6 +7,7 @@ import {
   standings,
   leagueMembers,
   pointsHistory,
+  rankHistory,
   userBadges,
 } from "@/db/schema";
 import { scorePrediction, isExactHit } from "./index";
@@ -218,6 +219,14 @@ export async function recomputeLeagueStandings(leagueId: string): Promise<void> 
   });
   rows.sort((x, y) => y.totalPoints - x.totalPoints || x.userId.localeCompare(y.userId));
 
+  // Determine the current max graded matchday for the rank history snapshot.
+  const [maxMdRow] = await db
+    .select({ maxMatchday: sql<number>`coalesce(max(${matches.matchday}), 0)::int` })
+    .from(predictions)
+    .innerJoin(matches, eq(matches.id, predictions.matchId))
+    .where(sql`${predictions.pointsAwarded} is not null`);
+  const snapshotMatchday = maxMdRow?.maxMatchday ?? 0;
+
   let rank = 0;
   let lastPoints: number | null = null;
   let seen = 0;
@@ -253,6 +262,22 @@ export async function recomputeLeagueStandings(leagueId: string): Promise<void> 
           updatedAt: new Date(),
         },
       });
+
+    // Snapshot rank history if we have a valid matchday.
+    if (snapshotMatchday > 0) {
+      await db
+        .insert(rankHistory)
+        .values({
+          userId: r.userId,
+          leagueId,
+          matchday: snapshotMatchday,
+          rank,
+        })
+        .onConflictDoUpdate({
+          target: [rankHistory.userId, rankHistory.leagueId, rankHistory.matchday],
+          set: { rank, recordedAt: new Date() },
+        });
+    }
   }
 }
 

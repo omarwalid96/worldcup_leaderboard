@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MatchCard } from "@/components/match/match-card";
 import { requireProfile } from "@/lib/auth/session";
-import { getUsTodayMatches } from "@/lib/matches/queries";
+import { getPredictableMatches } from "@/lib/matches/queries";
 
 export const metadata: Metadata = { title: "Home" };
 
 export default async function DashboardPage() {
   const profile = await requireProfile();
-  const today = await getUsTodayMatches(profile.id);
+  const openNow = await getPredictableMatches(profile.id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -61,11 +61,11 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      {/* Today's matches (US Eastern day = the prediction window) */}
+      {/* Open to predict now — within 12h of kickoff */}
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-muted-foreground">
-            Today&apos;s matches
+            Open to predict
           </h2>
           <Link
             href="/matches"
@@ -74,9 +74,9 @@ export default async function DashboardPage() {
             See all
           </Link>
         </div>
-        {today.length ? (
+        {openNow.length ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {today.map((m) => (
+            {openNow.map((m) => (
               <MatchCard
                 key={m.id}
                 match={m}
@@ -90,7 +90,7 @@ export default async function DashboardPage() {
             <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
               <CalendarDays className="size-8 text-muted-foreground/60" />
               <p className="text-sm text-muted-foreground">
-                No matches today. Predictions open each matchday (US Eastern).
+                Nothing to predict right now. Picks open 12 hours before kickoff.
               </p>
             </CardContent>
           </Card>

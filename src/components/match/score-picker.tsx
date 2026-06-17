@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { savePrediction } from "@/lib/predictions/actions";
 import { celebrateSave } from "@/lib/celebrate";
+import { motion, AnimatePresence } from "motion/react";
 
 interface Team {
   name: string;
@@ -78,6 +79,7 @@ export function ScorePicker({
   const [awayPick, setAwayPick] = useState(initialAway ?? 0);
   const [doubleDown, setDoubleDown] = useState(initialDoubleDown);
   const [pending, startTransition] = useTransition();
+  const [floatingLogos, setFloatingLogos] = useState<{ id: number; delay: number; xOffset: number; scale: number }[]>([]);
 
   const hadPrediction = initialHome != null;
   const dirty =
@@ -95,9 +97,24 @@ export function ScorePicker({
       });
       if (res.ok) {
         celebrateSave();
+        
+        // Spawn floating wiggling logos
+        const now = Date.now();
+        setFloatingLogos([
+          { id: now, delay: 0, xOffset: -45, scale: 0.95 },
+          { id: now + 1, delay: 0.12, xOffset: 0, scale: 1.25 },
+          { id: now + 2, delay: 0.24, xOffset: 45, scale: 0.9 },
+        ]);
+
         toast.success("Pick saved", {
           description: `${home.name} ${homePick}–${awayPick} ${away.name}${doubleDown ? " · double-down" : ""}`,
         });
+        
+        // Clear floating logos after animation completes
+        setTimeout(() => {
+          setFloatingLogos([]);
+        }, 2200);
+
         router.refresh();
       } else {
         toast.error(res.error ?? "Couldn't save your pick.");
@@ -107,7 +124,55 @@ export function ScorePicker({
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="relative flex flex-col gap-6">
+      {/* Floating Logos Animation */}
+      <AnimatePresence>
+        {floatingLogos.map((logo) => (
+          <motion.div
+            key={logo.id}
+            initial={{
+              opacity: 0,
+              scale: 0.3 * logo.scale,
+              y: 20,
+              x: `calc(-50% + ${logo.xOffset}px)`,
+              rotate: 0,
+            }}
+            animate={{
+              opacity: [0, 1, 1, 0],
+              scale: [
+                0.3 * logo.scale,
+                1.1 * logo.scale,
+                1 * logo.scale,
+                0.7 * logo.scale,
+              ],
+              y: -240,
+              x: [
+                `calc(-50% + ${logo.xOffset}px)`,
+                `calc(-50% + ${logo.xOffset - 20}px)`,
+                `calc(-50% + ${logo.xOffset + 20}px)`,
+                `calc(-50% + ${logo.xOffset - 12}px)`,
+                `calc(-50% + ${logo.xOffset + 12}px)`,
+                `calc(-50% + ${logo.xOffset}px)`,
+              ],
+              rotate: [0, -25, 25, -15, 15, 0],
+            }}
+            transition={{
+              duration: 1.8,
+              delay: logo.delay,
+              ease: "easeOut",
+            }}
+            className="absolute pointer-events-none z-50 left-1/2 bottom-16"
+          >
+            <div className="relative size-14 overflow-hidden rounded-full border-2 border-gold/75 bg-background shadow-lg shadow-gold/30">
+              <img
+                src="/brand-mark.jpg"
+                alt="GroupStage Logo"
+                className="size-full object-cover"
+              />
+            </div>
+          </motion.div>
+        ))}
+      </AnimatePresence>
       {/* Score steppers */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 rounded-2xl border bg-card/70 p-6">
         <div className="flex flex-col items-center gap-3 text-center">

@@ -7,7 +7,7 @@ import { KickoffTime } from "@/components/match/kickoff-time";
 import { FriendsPicks } from "@/components/match/friends-picks";
 import { requireProfile } from "@/lib/auth/session";
 import { getMatchForPrediction, getMatchPredictions } from "@/lib/predictions/queries";
-import { isUsToday } from "@/lib/time/usday";
+import { isPredictable } from "@/lib/time/usday";
 
 export const metadata: Metadata = { title: "Make your pick" };
 
@@ -35,9 +35,9 @@ export default async function PredictPage({
   if (!data) notFound();
 
   const { match, locked, prediction } = data;
-  // Editable only if it's the US-Eastern day AND kickoff hasn't passed.
-  const usToday = isUsToday(match.kickoffUtc);
-  const editable = usToday && !locked;
+  // Editable only within the 12h pre-kickoff window AND before kickoff.
+  const inWindow = isPredictable(match.kickoffUtc);
+  const editable = inWindow && !locked;
   const isGraded = match.status === "finished";
   const stageText =
     match.stage === "group"
@@ -83,8 +83,8 @@ export default async function PredictPage({
         initialDoubleDown={prediction?.isDoubleDown ?? false}
         locked={!editable}
         lockReason={
-          !usToday && !locked
-            ? "Predictions for this match open on its matchday (US Eastern)."
+          !inWindow && !locked
+            ? "Predictions open 12 hours before kickoff."
             : undefined
         }
       />

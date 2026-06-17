@@ -6,12 +6,27 @@ import {
   Trophy,
   Crosshair,
   History,
+  Activity,
+  LineChart,
+  TrendingUp,
+  PieChart,
+  BarChart2,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PredictionHistory } from "@/components/profile/prediction-history";
+import { PointsChart } from "@/components/profile/points-chart";
+import { OutcomeChart } from "@/components/profile/outcome-chart";
+import { RankChart } from "@/components/profile/rank-chart";
+import { ParticipationChart } from "@/components/profile/participation-chart";
 import { getProfileByUsername, getUserPredictionHistory } from "@/lib/predictions/history";
-import { getProfileStats } from "@/lib/profile/stats";
+import {
+  getProfileStats,
+  getPointsHistory,
+  getOutcomeBreakdown,
+  getRankHistory,
+  getParticipationHistory,
+} from "@/lib/profile/stats";
 import { getSessionProfile } from "@/lib/auth/session";
 
 export async function generateMetadata({
@@ -37,9 +52,20 @@ export default async function UserProfilePage({
 
   if (!profile) notFound();
 
-  const [stats, history] = await Promise.all([
+  const [
+    stats,
+    history,
+    pointsHistory,
+    outcomeBreakdown,
+    rankHistoryData,
+    participationHistory,
+  ] = await Promise.all([
     getProfileStats(profile.id),
     getUserPredictionHistory(profile.id),
+    getPointsHistory(profile.id),
+    getOutcomeBreakdown(profile.id),
+    getRankHistory(profile.id),
+    getParticipationHistory(profile.id),
   ]);
 
   const initials = profile.displayName
@@ -77,6 +103,15 @@ export default async function UserProfilePage({
       icon: Crosshair,
       tone: "text-foreground",
     },
+    {
+      label: "Participation",
+      value:
+        stats.lockedAvailable > 0
+          ? `${Math.round(stats.participation * 100)}%`
+          : "—",
+      icon: Activity,
+      tone: "text-primary",
+    },
   ] as const;
 
   // Fallback timezone for KickoffTime SSR — use session user's tz if available.
@@ -108,7 +143,7 @@ export default async function UserProfilePage({
       </div>
 
       {/* Stat grid */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {statCards.map((s) => (
           <Card key={s.label} className="border-border/60 bg-card/70">
             <CardContent className="flex flex-col gap-1 p-4">
@@ -119,6 +154,51 @@ export default async function UserProfilePage({
           </Card>
         ))}
       </div>
+
+      {/* Points over time */}
+      <Card className="border-border/60 bg-card/70">
+        <CardHeader className="flex-row items-center gap-2 space-y-0">
+          <LineChart className="size-4 text-primary" />
+          <CardTitle className="text-base">Points over time</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <PointsChart data={pointsHistory} />
+        </CardContent>
+      </Card>
+
+      {/* Charts row: outcome breakdown + rank over time */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Card className="border-border/60 bg-card/70">
+          <CardHeader className="flex-row items-center gap-2 space-y-0">
+            <PieChart className="size-4 text-gold" />
+            <CardTitle className="text-base">Outcome breakdown</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <OutcomeChart data={outcomeBreakdown} />
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60 bg-card/70">
+          <CardHeader className="flex-row items-center gap-2 space-y-0">
+            <TrendingUp className="size-4 text-primary" />
+            <CardTitle className="text-base">Rank over time</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RankChart data={rankHistoryData} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Participation chart */}
+      <Card className="border-border/60 bg-card/70">
+        <CardHeader className="flex-row items-center gap-2 space-y-0">
+          <BarChart2 className="size-4 text-primary" />
+          <CardTitle className="text-base">Participation by matchday</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ParticipationChart data={participationHistory} />
+        </CardContent>
+      </Card>
 
       {/* Pick history */}
       <Card className="border-border/60 bg-card/70">
