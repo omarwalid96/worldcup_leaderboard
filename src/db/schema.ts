@@ -104,6 +104,11 @@ export const matches = pgTable(
     status: matchStatus("status").notNull().default("scheduled"),
     homeScore: integer("home_score"),
     awayScore: integer("away_score"),
+    // Penalty shootout (knockout only) — the data source can't report these, so
+    // an admin sets them after the match. wentToPens gates the pens bonus.
+    wentToPens: boolean("went_to_pens").notNull().default(false),
+    pensHome: integer("pens_home"), // actual shootout score
+    pensAway: integer("pens_away"),
     lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
   },
   (t) => [
@@ -125,6 +130,11 @@ export const predictions = pgTable(
     homePick: integer("home_pick").notNull(),
     awayPick: integer("away_pick").notNull(),
     isDoubleDown: boolean("is_double_down").notNull().default(false),
+    // Penalty shootout pick (knockout only) — saved upfront with the scoreline.
+    // Only scored if the match actually goes to pens. pensWinner: 'home'|'away'.
+    pensWinner: text("pens_winner"),
+    pensHomePick: integer("pens_home_pick"), // optional exact shootout score guess
+    pensAwayPick: integer("pens_away_pick"),
     // Set true by the server once kickoff has passed; a locked pick is immutable.
     locked: boolean("locked").notNull().default(false),
     // null until the match is graded.

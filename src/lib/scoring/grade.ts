@@ -10,7 +10,7 @@ import {
   rankHistory,
   userBadges,
 } from "@/db/schema";
-import { scorePrediction, isExactHit } from "./index";
+import { scorePrediction, isExactHit, scorePens } from "./index";
 
 export interface GradeSummary {
   gradedMatches: number;
@@ -34,8 +34,12 @@ export async function gradeFinishedMatches(): Promise<
   const finished = await db
     .select({
       id: matches.id,
+      stage: matches.stage,
       homeScore: matches.homeScore,
       awayScore: matches.awayScore,
+      wentToPens: matches.wentToPens,
+      pensHome: matches.pensHome,
+      pensAway: matches.pensAway,
     })
     .from(matches)
     .where(and(eq(matches.status, "finished")));
@@ -64,7 +68,20 @@ export async function gradeFinishedMatches(): Promise<
         homeActual: m.homeScore,
         awayActual: m.awayScore,
       };
-      const pts = scorePrediction({ ...ctx, isDoubleDown: p.isDoubleDown });
+      const isKnockout = m.stage !== "group";
+      let pts = scorePrediction({ ...ctx, isDoubleDown: p.isDoubleDown, isKnockout });
+
+      // Penalty-shootout bonus (knockout only) — added on top of the scoreline
+      // points when the admin recorded that the match went to pens.
+      if (m.wentToPens && m.pensHome != null && m.pensAway != null) {
+        pts += scorePens({
+          pickWinner: (p.pensWinner as "home" | "away" | null) ?? null,
+          pickHome: p.pensHomePick,
+          pickAway: p.pensAwayPick,
+          actualHome: m.pensHome,
+          actualAway: m.pensAway,
+        });
+      }
 
       await db
         .update(predictions)

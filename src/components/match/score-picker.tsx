@@ -69,6 +69,10 @@ export function ScorePicker({
   initialDoubleDown,
   locked,
   lockReason,
+  isKnockout = false,
+  initialPensWinner = null,
+  initialPensHome = null,
+  initialPensAway = null,
 }: {
   matchId: string;
   home: Team;
@@ -79,11 +83,22 @@ export function ScorePicker({
   locked: boolean;
   /** Optional override message for the locked banner. */
   lockReason?: string;
+  /** Knockout match → show the optional penalty-shootout prediction. */
+  isKnockout?: boolean;
+  initialPensWinner?: "home" | "away" | null;
+  initialPensHome?: number | null;
+  initialPensAway?: number | null;
 }) {
   const router = useRouter();
   const [homePick, setHomePick] = useState(initialHome ?? 0);
   const [awayPick, setAwayPick] = useState(initialAway ?? 0);
   const [doubleDown, setDoubleDown] = useState(initialDoubleDown);
+  const [pensWinner, setPensWinner] = useState<"home" | "away" | null>(initialPensWinner);
+  const [pensHome, setPensHome] = useState(initialPensHome ?? 5);
+  const [pensAway, setPensAway] = useState(initialPensAway ?? 4);
+  const [showPensScore, setShowPensScore] = useState(
+    initialPensHome != null && initialPensAway != null,
+  );
   const [pending, startTransition] = useTransition();
   const [floatingLogos, setFloatingLogos] = useState<{ id: number; delay: number; xOffset: number; scale: number }[]>([]);
 
@@ -91,7 +106,9 @@ export function ScorePicker({
   const dirty =
     homePick !== (initialHome ?? 0) ||
     awayPick !== (initialAway ?? 0) ||
-    doubleDown !== initialDoubleDown;
+    doubleDown !== initialDoubleDown ||
+    pensWinner !== initialPensWinner ||
+    (showPensScore && (pensHome !== initialPensHome || pensAway !== initialPensAway));
 
   function onSave() {
     startTransition(async () => {
@@ -100,6 +117,9 @@ export function ScorePicker({
         homePick,
         awayPick,
         isDoubleDown: doubleDown,
+        pensWinner: isKnockout ? pensWinner : null,
+        pensHomePick: isKnockout && pensWinner && showPensScore ? pensHome : null,
+        pensAwayPick: isKnockout && pensWinner && showPensScore ? pensAway : null,
       });
       if (res.ok) {
         celebrateSave();
@@ -248,6 +268,72 @@ export function ScorePicker({
               />
             </span>
           </button>
+
+          {/* Penalty shootout (knockout only) — optional bonus prediction */}
+          {isKnockout && (
+            <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-card/50 p-4">
+              <div>
+                <div className="text-sm font-semibold">If it goes to penalties…</div>
+                <div className="text-xs text-muted-foreground">
+                  Optional. +1 correct winner, +1 exact shootout score.
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {(["home", "away"] as const).map((side) => {
+                  const team = side === "home" ? home : away;
+                  const active = pensWinner === side;
+                  return (
+                    <button
+                      key={side}
+                      type="button"
+                      disabled={pending}
+                      onClick={() => {
+                        haptic(15);
+                        setPensWinner(active ? null : side);
+                      }}
+                      className={cn(
+                        "flex items-center gap-2 rounded-lg border p-2.5 text-left text-sm transition-colors",
+                        active
+                          ? "border-gold/50 bg-gold/10 font-semibold"
+                          : "border-border/60 hover:border-gold/30",
+                      )}
+                    >
+                      <TeamFlag code={team.code} alt={team.name} size={22} />
+                      <span className="truncate">{team.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {pensWinner && (
+                <button
+                  type="button"
+                  onClick={() => setShowPensScore((s) => !s)}
+                  className="self-start text-xs font-medium text-gold hover:underline"
+                >
+                  {showPensScore ? "Hide exact score" : "+ Guess exact shootout score"}
+                </button>
+              )}
+
+              {pensWinner && showPensScore && (
+                <div className="flex items-center justify-center gap-3">
+                  <Stepper
+                    value={pensHome}
+                    onChange={setPensHome}
+                    disabled={pending}
+                    label={`${home.name} pens`}
+                  />
+                  <span className="pb-8 text-xl font-bold text-muted-foreground">–</span>
+                  <Stepper
+                    value={pensAway}
+                    onChange={setPensAway}
+                    disabled={pending}
+                    label={`${away.name} pens`}
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           <Button
             size="lg"

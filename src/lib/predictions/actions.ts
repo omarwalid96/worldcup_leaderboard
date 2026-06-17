@@ -12,6 +12,10 @@ const schema = z.object({
   homePick: z.number().int().min(0).max(20),
   awayPick: z.number().int().min(0).max(20),
   isDoubleDown: z.boolean().default(false),
+  // Optional penalty-shootout prediction (knockout matches only).
+  pensWinner: z.enum(["home", "away"]).nullish(),
+  pensHomePick: z.number().int().min(0).max(20).nullish(),
+  pensAwayPick: z.number().int().min(0).max(20).nullish(),
 });
 
 export interface SavePredictionResult {
@@ -32,6 +36,9 @@ export async function savePrediction(input: {
   homePick: number;
   awayPick: number;
   isDoubleDown?: boolean;
+  pensWinner?: "home" | "away" | null;
+  pensHomePick?: number | null;
+  pensAwayPick?: number | null;
 }): Promise<SavePredictionResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You must be signed in." };
@@ -41,11 +48,22 @@ export async function savePrediction(input: {
     homePick: input.homePick,
     awayPick: input.awayPick,
     isDoubleDown: input.isDoubleDown ?? false,
+    pensWinner: input.pensWinner ?? null,
+    pensHomePick: input.pensHomePick ?? null,
+    pensAwayPick: input.pensAwayPick ?? null,
   });
   if (!parsed.success) {
     return { ok: false, error: "Enter a valid scoreline (0–20 each side)." };
   }
-  const { matchId, homePick, awayPick, isDoubleDown } = parsed.data;
+  const {
+    matchId,
+    homePick,
+    awayPick,
+    isDoubleDown,
+    pensWinner,
+    pensHomePick,
+    pensAwayPick,
+  } = parsed.data;
 
   // Re-read the match and check, using the DB clock (never the client):
   //  - open:   kickoff hasn't passed (lock rule)
@@ -101,6 +119,9 @@ export async function savePrediction(input: {
       homePick,
       awayPick,
       isDoubleDown,
+      pensWinner: pensWinner ?? null,
+      pensHomePick: pensHomePick ?? null,
+      pensAwayPick: pensAwayPick ?? null,
       locked: false,
     })
     .onConflictDoUpdate({
@@ -109,6 +130,9 @@ export async function savePrediction(input: {
         homePick,
         awayPick,
         isDoubleDown,
+        pensWinner: pensWinner ?? null,
+        pensHomePick: pensHomePick ?? null,
+        pensAwayPick: pensAwayPick ?? null,
         updatedAt: new Date(),
       },
       // Guard: never modify a row that has been locked.

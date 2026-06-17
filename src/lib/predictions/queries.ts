@@ -12,6 +12,9 @@ export interface MatchForPrediction {
     awayPick: number;
     isDoubleDown: boolean;
     pointsAwarded: number | null;
+    pensWinner: "home" | "away" | null;
+    pensHomePick: number | null;
+    pensAwayPick: number | null;
   } | null;
 }
 
@@ -49,6 +52,9 @@ export async function getMatchForPrediction(
           awayPick: pred.awayPick,
           isDoubleDown: pred.isDoubleDown,
           pointsAwarded: pred.pointsAwarded,
+          pensWinner: (pred.pensWinner as "home" | "away" | null) ?? null,
+          pensHomePick: pred.pensHomePick,
+          pensAwayPick: pred.pensAwayPick,
         }
       : null,
   };

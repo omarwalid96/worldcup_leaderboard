@@ -5,6 +5,7 @@ import { ArrowLeft, MapPin } from "lucide-react";
 import { ScorePicker } from "@/components/match/score-picker";
 import { KickoffTime } from "@/components/match/kickoff-time";
 import { FriendsPicks } from "@/components/match/friends-picks";
+import { MatchAdmin } from "@/components/admin/match-admin";
 import { requireProfile } from "@/lib/auth/session";
 import { getMatchForPrediction, getMatchPredictions } from "@/lib/predictions/queries";
 import { isPredictable } from "@/lib/time/usday";
@@ -39,6 +40,7 @@ export default async function PredictPage({
   const inWindow = isPredictable(match.kickoffUtc);
   const editable = inWindow && !locked;
   const isGraded = match.status === "finished";
+  const isKnockout = match.stage !== "group";
   const stageText =
     match.stage === "group"
       ? `Group ${match.groupName ?? ""}`.trim()
@@ -87,12 +89,37 @@ export default async function PredictPage({
             ? "Predictions open 12 hours before kickoff."
             : undefined
         }
+        isKnockout={match.stage !== "group"}
+        initialPensWinner={prediction?.pensWinner ?? null}
+        initialPensHome={prediction?.pensHomePick ?? null}
+        initialPensAway={prediction?.pensAwayPick ?? null}
       />
 
       {editable && (
         <p className="text-center text-xs text-muted-foreground">
-          Exact score = 3 pts · correct result = 1 pt. Picks lock at kickoff.
+          {isKnockout
+            ? "Exact 3 · correct result 1 · exact draw 2 · pens +1 winner, +1 exact."
+            : "Exact score = 3 pts · correct result = 1 pt. Picks lock at kickoff."}
         </p>
+      )}
+
+      {/* Actual shootout result, once recorded (visible to everyone) */}
+      {match.wentToPens && match.pensHome != null && match.pensAway != null && (
+        <div className="rounded-xl border border-gold/30 bg-gold/10 px-4 py-2.5 text-center text-sm font-medium text-gold">
+          Won on penalties {match.pensHome}–{match.pensAway}
+        </div>
+      )}
+
+      {/* Admin-only: record the shootout result for a knockout */}
+      {profile.isAdmin && isKnockout && (
+        <MatchAdmin
+          matchId={match.id}
+          homeName={match.homeTeam}
+          awayName={match.awayTeam}
+          wentToPens={match.wentToPens}
+          pensHome={match.pensHome}
+          pensAway={match.pensAway}
+        />
       )}
 
       <FriendsPicks picks={friendsPicks} currentUserId={profile.id} graded={isGraded} />
