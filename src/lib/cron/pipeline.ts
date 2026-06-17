@@ -5,6 +5,7 @@ import {
   snapshotPointsHistory,
 } from "@/lib/scoring/grade";
 import { sendGradingNotifications } from "@/lib/notifications/grading";
+import { recordCronRun } from "./log";
 
 export interface PipelineResult {
   ok: true;
@@ -33,6 +34,14 @@ export async function runPipeline(): Promise<PipelineResult> {
   await snapshotPointsHistory();
   // Fire push notifications after grading; failures must not break the pipeline.
   await sendGradingNotifications(grading.exactHitUserIds, grading.affectedUserIds);
+
+  // Heartbeat so we can confirm the cron is actually firing (cron_log table).
+  await recordCronRun("sync", {
+    scoresUpdated: sync.scoresUpdated,
+    statusChanges: sync.statusChanges,
+    markedLive,
+    graded: grading.gradedPredictions,
+  });
 
   return {
     ok: true,

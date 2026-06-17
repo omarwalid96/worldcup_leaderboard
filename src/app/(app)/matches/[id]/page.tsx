@@ -6,6 +6,7 @@ import { ScorePicker } from "@/components/match/score-picker";
 import { KickoffTime, PredictionCountdown } from "@/components/match/kickoff-time";
 import { FriendsPicks } from "@/components/match/friends-picks";
 import { MatchAdmin } from "@/components/admin/match-admin";
+import { LiveRefresher } from "@/components/match/live-refresher";
 import { requireProfile } from "@/lib/auth/session";
 import { getMatchForPrediction, getMatchPredictions } from "@/lib/predictions/queries";
 import { isPredictable } from "@/lib/time/usday";
@@ -48,6 +49,9 @@ export default async function PredictPage({
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-6">
+      {/* Auto-refresh the score while this match is live (polls our DB, 5 min). */}
+      {match.status === "live" && <LiveRefresher />}
+
       <Link
         href="/matches"
         className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"

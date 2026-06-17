@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MatchList } from "@/components/match/match-list";
 import { MatchSearch } from "@/components/match/match-search";
+import { LiveRefresher } from "@/components/match/live-refresher";
 import { requireProfile } from "@/lib/auth/session";
 import { getMatchesWithPredictions } from "@/lib/matches/queries";
 import { isPredictable } from "@/lib/time/usday";
@@ -33,6 +34,10 @@ export default async function MatchesPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Auto-refresh on-screen scores only while a match is live (polls our DB,
+          not the football API; every 5 min, visible tab only). */}
+      {live.length > 0 && <LiveRefresher />}
+
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Matches</h1>
         <p className="text-sm text-muted-foreground">
