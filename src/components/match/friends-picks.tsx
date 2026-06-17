@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Users, Zap } from "lucide-react";
+import { Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import type { FriendPick } from "@/lib/predictions/queries";
@@ -66,7 +66,8 @@ export function FriendsPicks({
                   </span>
                 )}
               </Link>
-              {p.isDoubleDown && <Zap className="size-3.5 text-gold" aria-label="Double down" />}
+              {/* Double-down disabled for now (kept for future use):
+              {p.isDoubleDown && <Zap className="size-3.5 text-gold" aria-label="Double down" />} */}
               <span className="font-numeric text-xl tabular-nums">
                 {p.homePick}–{p.awayPick}
               </span>

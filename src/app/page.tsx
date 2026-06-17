@@ -24,8 +24,8 @@ const features = [
   },
   {
     icon: Flame,
-    title: "Streaks & double-downs",
-    desc: "Build a hot streak, double down once a matchday, earn badges, and climb the levels.",
+    title: "Streaks & badges",
+    desc: "Build a hot streak, earn badges, and climb the levels.",
   },
   {
     icon: Bell,
@@ -116,12 +116,12 @@ export default function LandingPage() {
             <Zap className="size-4 text-gold" />
             How points work
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="mt-4 grid grid-cols-3 gap-3">
             {[
               { pts: "3", label: "Exact scoreline", tone: "text-gold" },
               { pts: "1", label: "Correct result", tone: "text-foreground" },
               { pts: "0", label: "Wrong", tone: "text-muted-foreground" },
-              { pts: "×2", label: "Double-down", tone: "text-gold" },
+              // Double-down (×2) disabled for now — kept for future use.
             ].map((r) => (
               <div key={r.label} className="rounded-xl bg-background/40 p-4">
                 <div className={`font-numeric text-4xl ${r.tone}`}>

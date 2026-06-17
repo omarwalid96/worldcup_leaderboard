@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Zap, Search, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { formatInTimeZone } from "date-fns-tz";
 import { TeamFlag } from "@/components/match/team-flag";
 import { KickoffTime } from "@/components/match/kickoff-time";
@@ -212,9 +212,10 @@ export function PredictionHistory({
 
             {/* Pick */}
             <div className="flex items-center gap-1.5">
+              {/* Double-down disabled for now (kept for future use):
               {row.isDoubleDown && (
                 <Zap className="size-3.5 shrink-0 text-gold" aria-label="Double down" />
-              )}
+              )} */}
               <span className="font-numeric text-base tabular-nums">
                 {row.homePick}–{row.awayPick}
               </span>

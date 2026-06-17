@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Minus, Plus, Zap, Loader2, Check, Lock } from "lucide-react";
+import { Minus, Plus, Loader2, Check, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { TeamFlag } from "./team-flag";
 import { Button } from "@/components/ui/button";
@@ -92,7 +92,9 @@ export function ScorePicker({
   const router = useRouter();
   const [homePick, setHomePick] = useState(initialHome ?? 0);
   const [awayPick, setAwayPick] = useState(initialAway ?? 0);
-  const [doubleDown, setDoubleDown] = useState(initialDoubleDown);
+  // Double-down UI is disabled for now; the value is preserved as-is so existing
+  // picks keep their flag. setter unused while the toggle is commented out.
+  const [doubleDown] = useState(initialDoubleDown);
   const [pensWinner, setPensWinner] = useState<"home" | "away" | null>(initialPensWinner);
   const [pensHome, setPensHome] = useState(initialPensHome ?? 5);
   const [pensAway, setPensAway] = useState(initialPensAway ?? 4);
@@ -223,7 +225,8 @@ export function ScorePicker({
         </div>
       ) : (
         <>
-          {/* Double-down toggle */}
+          {/* DOUBLE-DOWN — disabled for now (kept for future use). To re-enable,
+              uncomment this toggle; the scoring/DB logic is intact.
           <button
             type="button"
             onClick={() => {
@@ -268,6 +271,7 @@ export function ScorePicker({
               />
             </span>
           </button>
+          */}
 
           {/* Penalty shootout (knockout only) — optional bonus prediction */}
           {isKnockout && (

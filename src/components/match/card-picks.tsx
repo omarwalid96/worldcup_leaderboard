@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ChevronDown, Users, Zap, Loader2 } from "lucide-react";
+import { ChevronDown, Users, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -81,7 +81,8 @@ export function CardPicks({ matchId, graded }: { matchId: string; graded: boolea
                         </AvatarFallback>
                       </Avatar>
                       <span className="flex-1 truncate text-xs">{p.displayName}</span>
-                      {p.isDoubleDown && <Zap className="size-3 text-gold" aria-label="Double down" />}
+                      {/* Double-down disabled for now (kept for future use):
+                      {p.isDoubleDown && <Zap className="size-3 text-gold" aria-label="Double down" />} */}
                       <span className="font-numeric text-base tabular-nums">
                         {p.homePick}–{p.awayPick}
                       </span>

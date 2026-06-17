@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
-import { Lock, Check, ChevronRight, Zap } from "lucide-react";
+import { Lock, Check, ChevronRight } from "lucide-react";
 import { TeamFlag } from "./team-flag";
 import { KickoffTime, PredictionCountdown } from "./kickoff-time";
 import { CardPicks } from "./card-picks";
@@ -149,7 +149,8 @@ export function MatchCard({
             ) : (
               <span className="inline-flex items-center gap-1 font-medium text-primary">
                 <Check className="size-3.5" />
-                {prediction.isDoubleDown && <Zap className="size-3.5 text-gold" />}
+                {/* Double-down disabled for now (kept for future use):
+                {prediction.isDoubleDown && <Zap className="size-3.5 text-gold" />} */}
                 {prediction.homePick}–{prediction.awayPick}
                 {tappable && (
                   <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
