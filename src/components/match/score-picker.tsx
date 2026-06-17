@@ -8,7 +8,7 @@ import { TeamFlag } from "./team-flag";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { savePrediction } from "@/lib/predictions/actions";
-import { celebrateSave } from "@/lib/celebrate";
+import { celebrateSave, haptic } from "@/lib/celebrate";
 import { motion, AnimatePresence } from "motion/react";
 
 interface Team {
@@ -33,7 +33,10 @@ function Stepper({
         type="button"
         aria-label={`Increase ${label}`}
         disabled={disabled || value >= 20}
-        onClick={() => onChange(value + 1)}
+        onClick={() => {
+          haptic(10);
+          onChange(value + 1);
+        }}
         className="grid size-9 place-items-center rounded-full bg-secondary text-foreground transition-colors hover:bg-accent disabled:opacity-40"
       >
         <Plus className="size-4" />
@@ -45,7 +48,10 @@ function Stepper({
         type="button"
         aria-label={`Decrease ${label}`}
         disabled={disabled || value <= 0}
-        onClick={() => onChange(Math.max(0, value - 1))}
+        onClick={() => {
+          haptic(10);
+          onChange(Math.max(0, value - 1));
+        }}
         className="grid size-9 place-items-center rounded-full bg-secondary text-foreground transition-colors hover:bg-accent disabled:opacity-40"
       >
         <Minus className="size-4" />
@@ -200,7 +206,10 @@ export function ScorePicker({
           {/* Double-down toggle */}
           <button
             type="button"
-            onClick={() => setDoubleDown((d) => !d)}
+            onClick={() => {
+              haptic(20);
+              setDoubleDown((d) => !d);
+            }}
             disabled={pending}
             className={cn(
               "flex items-center justify-between rounded-xl border p-4 text-left transition-colors",
