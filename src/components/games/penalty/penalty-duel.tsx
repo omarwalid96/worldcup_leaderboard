@@ -71,11 +71,8 @@ export function PenaltyDuel({
   initialMatch,
   currentUserId,
 }: GameComponentProps) {
-  const { match, connected, bothPresent, broadcast, onBroadcast } = useGameRoom(
-    matchId,
-    initialMatch,
-    currentUserId,
-  );
+  const { match, connected, present, broadcast, onBroadcast, setMatch } =
+    useGameRoom(matchId, initialMatch, currentUserId);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   // The shot direction the keeper just saw the ball fly (for animation).
@@ -124,7 +121,15 @@ export function PenaltyDuel({
     setError(null);
     startTransition(async () => {
       const res = await applyMove(matchId, move);
-      if (!res.ok) setError(res.error ?? "Move failed.");
+      if (!res.ok) {
+        setError(res.error ?? "Move failed.");
+        return;
+      }
+      // Advance my own screen instantly from the authoritative result…
+      if (res.match) setMatch(res.match);
+      // …and tell the opponent to re-fetch the row immediately (broadcast isn't
+      // RLS-gated, unlike postgres_changes on game_matches).
+      broadcast("sync", { at: Date.now() });
     });
   }
 
@@ -178,19 +183,12 @@ export function PenaltyDuel({
     );
   }
 
-  if (!bothPresent) {
-    return (
-      <Centered>
-        <Loader2 className="size-8 animate-spin text-gold" />
-        <p className="mt-3 text-sm text-muted-foreground">
-          Waiting for {opp?.displayName ?? "your opponent"} to join the room…
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground/70">
-          Both players must be here at the same time to play.
-        </p>
-      </Centered>
-    );
-  }
+  // Async-friendly, live-preferred: NEVER block your own turn waiting for the
+  // opponent. You can always act when it's your move; if it's their move and
+  // they're not here, show a soft "waiting for their turn" hint (they got a
+  // push and can play whenever). When both are present it stays instant via
+  // broadcast. So we only fall through to a waiting screen when it's genuinely
+  // the opponent's turn — handled inline by the prompt below, not a hard gate.
 
   const roleLabel = iShootRole ? "You shoot" : "You keep";
   const prompt = myTurn
@@ -263,9 +261,18 @@ export function PenaltyDuel({
             ))}
           </div>
         ) : (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" />
-            <span className="text-sm">Their move…</span>
+          <div className="flex flex-col items-center gap-1 text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Loader2 className="size-4 animate-spin" />
+              <span className="text-sm">
+                {opp?.displayName ?? "Opponent"}&apos;s move…
+              </span>
+            </div>
+            {opp?.id && !present.includes(opp.id) && (
+              <span className="text-xs text-muted-foreground/60">
+                They&apos;ve been notified — you can leave; it&apos;ll update when they play.
+              </span>
+            )}
           </div>
         )}
         {error && <p className="text-xs text-destructive">{error}</p>}

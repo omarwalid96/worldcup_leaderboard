@@ -220,6 +220,19 @@ export async function applyMove(
       row.player2Id,
       nextWinnerId,
     );
+  } else if (nextTurn && nextTurn !== user.id) {
+    // Async-friendly: ping the player whose turn it now is so they don't have to
+    // be glued to the room. (Live sync still happens instantly via broadcast if
+    // they're already present; the push just covers the away case.)
+    await sendPushToUser(
+      nextTurn,
+      {
+        title: `Your move — ${def.title}`,
+        body: "It's your turn. Tap to play.",
+        url: `/games/${matchId}`,
+      },
+      "gameChallenge",
+    );
   }
 
   revalidatePath(`/games/${matchId}`);

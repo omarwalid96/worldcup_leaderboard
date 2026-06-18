@@ -19,6 +19,8 @@ export interface UseGameRoom {
   broadcast: (event: string, payload: unknown) => void;
   /** Subscribe to a broadcast event. Returns an unsubscribe fn. */
   onBroadcast: (event: string, cb: (payload: unknown) => void) => () => void;
+  /** Optimistically set the local match (e.g. from your own move's result). */
+  setMatch: (m: GameMatch) => void;
 }
 
 /**
@@ -56,6 +58,13 @@ export function useGameRoom(
     });
     channelRef.current = channel;
 
+    const resync = () => {
+      void (async () => {
+        const fresh = await refetchMatch(matchId);
+        if (fresh) setMatch(fresh);
+      })();
+    };
+
     channel
       .on(
         "postgres_changes",
@@ -65,13 +74,14 @@ export function useGameRoom(
           table: "game_matches",
           filter: `id=eq.${matchId}`,
         },
-        () => {
-          void (async () => {
-            const fresh = await refetchMatch(matchId);
-            if (fresh) setMatch(fresh);
-          })();
-        },
+        resync,
       )
+      // postgres_changes on game_matches is RLS-gated (participants only) and the
+      // realtime socket may not carry the user's auth token, so those events can
+      // silently never arrive. Broadcast is NOT RLS-gated, so every move also
+      // emits a "sync" broadcast that forces an authoritative re-fetch. Belt and
+      // suspenders — whichever lands first wins, both just re-read the row.
+      .on("broadcast", { event: "sync" }, resync)
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState();
         setPresent(Object.keys(state));
@@ -118,5 +128,5 @@ export function useGameRoom(
     present.includes(match.player1Id) &&
     present.includes(match.player2Id);
 
-  return { match, connected, present, bothPresent, broadcast, onBroadcast };
+  return { match, connected, present, bothPresent, broadcast, onBroadcast, setMatch };
 }
