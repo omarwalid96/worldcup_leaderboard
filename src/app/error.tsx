@@ -29,6 +29,14 @@ export default function Error({
       <Button onClick={reset} className="mt-6">
         <RotateCcw /> Try again
       </Button>
+
+      {/* TEMP diagnostic: show the error so a tester can screenshot it. */}
+      {(error?.message || error?.digest) && (
+        <pre className="mt-6 max-w-sm overflow-x-auto whitespace-pre-wrap break-words rounded-lg border border-border/60 bg-card/60 p-3 text-left text-[11px] text-muted-foreground">
+          {error.digest ? `digest: ${error.digest}\n` : ""}
+          {error.message ?? ""}
+        </pre>
+      )}
     </div>
   );
 }
