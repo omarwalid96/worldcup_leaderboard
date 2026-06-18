@@ -67,66 +67,99 @@ export function SponsorsGallery({ initial }: { initial: SponsorRow[] }) {
     });
   }
 
-  // Nothing yet and nobody's looking — still render the section so people can add.
+  const renderCard = (s: SponsorRow, copy: number) => (
+    <div key={`${s.id}-${copy}`} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setZoom(s.imageUrl)}
+        className="block overflow-hidden rounded-xl border border-border/60 outline-none transition-transform hover:border-gold/40 focus-visible:ring-2 focus-visible:ring-gold/60 active:scale-[0.98]"
+        aria-label="View sponsor"
+      >
+        {/* Portrait (3:4) thumbnail. motion.img matches the codebase's
+            avoid-next/image pattern for user-uploaded URLs. */}
+        <motion.img
+          src={s.imageUrl}
+          alt="Sponsor"
+          className="h-44 w-32 object-cover"
+          loading="lazy"
+          draggable={false}
+        />
+      </button>
+      {/* Remove only on the first copy (the duplicate is decorative). */}
+      {copy === 0 && (
+        <button
+          type="button"
+          onClick={() => onRemove(s.id)}
+          disabled={isPending}
+          aria-label="Remove sponsor"
+          className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-black/70 text-white backdrop-blur transition-colors hover:bg-destructive disabled:opacity-50"
+        >
+          <X className="size-3.5" />
+        </button>
+      )}
+    </div>
+  );
+
+  // Auto-scroll only when there are enough cards to overflow (≥4); otherwise a
+  // static centered row reads better. Duration scales with item count so speed
+  // stays consistent.
+  const marquee = items.length >= 4;
+  const duration = `${items.length * 4}s`;
+
   return (
     <section>
       <div className="mb-3 flex items-center justify-between">
         <h2 className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground">
           <Megaphone className="size-4 text-gold" /> Sponsors
+          <span className="text-xs font-normal text-muted-foreground/70">
+            {items.length}/{MAX}
+          </span>
         </h2>
-        <span className="text-xs text-muted-foreground/70">
-          {items.length}/{MAX}
-        </span>
-      </div>
-
-      <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
-        {items.map((s) => (
-          <div key={s.id} className="relative shrink-0">
-            <button
-              type="button"
-              onClick={() => setZoom(s.imageUrl)}
-              className="block overflow-hidden rounded-xl border border-border/60 outline-none transition-transform hover:border-gold/40 focus-visible:ring-2 focus-visible:ring-gold/60 active:scale-[0.98]"
-              aria-label="View sponsor"
-            >
-              {/* Portrait aspect (3:4) thumbnail. motion.img to match the
-                  codebase's avoid-next/image pattern (user-uploaded URLs). */}
-              <motion.img
-                src={s.imageUrl}
-                alt="Sponsor"
-                className="h-44 w-32 object-cover"
-                loading="lazy"
-              />
-            </button>
-            <button
-              type="button"
-              onClick={() => onRemove(s.id)}
-              disabled={isPending}
-              aria-label="Remove sponsor"
-              className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-black/70 text-white backdrop-blur transition-colors hover:bg-destructive disabled:opacity-50"
-            >
-              <X className="size-3.5" />
-            </button>
-          </div>
-        ))}
-
         {!full && (
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={isPending}
-            className="flex h-44 w-32 shrink-0 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/60 text-muted-foreground transition-colors hover:border-gold/40 hover:text-foreground disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded-full border border-gold/40 px-2.5 py-1 text-xs font-semibold text-gold transition-colors hover:bg-gold/10 disabled:opacity-50"
           >
             {isPending ? (
-              <Loader2 className="size-5 animate-spin" />
+              <Loader2 className="size-3.5 animate-spin" />
             ) : (
-              <>
-                <Plus className="size-5" />
-                <span className="text-xs font-medium">Add sponsor</span>
-              </>
+              <Plus className="size-3.5" />
             )}
+            Add
           </button>
         )}
       </div>
+
+      {items.length === 0 ? (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={isPending}
+          className="flex h-44 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/60 text-muted-foreground transition-colors hover:border-gold/40 hover:text-foreground disabled:opacity-50"
+        >
+          <Plus className="size-5" />
+          <span className="text-xs font-medium">Add the first sponsor</span>
+        </button>
+      ) : marquee ? (
+        // Auto-scrolling marquee: two copies in a row, animate by -50% for a
+        // seamless loop. Pauses on hover so you can tap/remove.
+        <div className="marquee-pause overflow-hidden">
+          <div
+            className="animate-marquee flex w-max gap-3"
+            style={{ ["--marquee-duration" as string]: duration }}
+          >
+            {items.map((s) => renderCard(s, 0))}
+            {items.map((s) => renderCard(s, 1))}
+          </div>
+        </div>
+      ) : (
+        // Few items: a normal swipeable row.
+        <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
+          {items.map((s) => renderCard(s, 0))}
+        </div>
+      )}
 
       <input
         ref={inputRef}
