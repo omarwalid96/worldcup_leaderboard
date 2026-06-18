@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, CalendarDays, Trophy, Gamepad2, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getIncomingChallengeCount } from "@/lib/games/actions";
 
 const items = [
   { href: "/dashboard", label: "Home", icon: Home },
@@ -17,9 +19,39 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
+/**
+ * Poll the pending-incoming-challenge count so a badge on the Games tab shows
+ * invites instantly without opening the tab. Cheap COUNT query; polls on mount,
+ * every 20s, on tab focus, and on route change. Shared by both nav variants.
+ */
+function useInvites() {
+  const pathname = usePathname();
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    const tick = () => {
+      if (document.visibilityState !== "visible") return;
+      void getIncomingChallengeCount().then((n) => {
+        if (alive) setCount(n);
+      });
+    };
+    tick();
+    const id = setInterval(tick, 20_000);
+    const onVis = () => tick();
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      alive = false;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [pathname]);
+  return count;
+}
+
 /** Mobile-first bottom tab bar. */
 export function BottomNav() {
   const pathname = usePathname();
+  const invites = useInvites();
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/80 backdrop-blur-lg md:hidden"
@@ -33,11 +65,18 @@ export function BottomNav() {
               <Link
                 href={it.href}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium transition-colors",
+                  "relative flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium transition-colors",
                   active ? "text-primary" : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                <it.icon className="size-5" strokeWidth={active ? 2.5 : 2} />
+                <span className="relative">
+                  <it.icon className="size-5" strokeWidth={active ? 2.5 : 2} />
+                  {it.href === "/games" && invites > 0 && (
+                    <span className="absolute -right-2 -top-1 grid min-w-4 place-items-center rounded-full bg-destructive px-1 text-[9px] font-bold leading-4 text-white">
+                      {invites}
+                    </span>
+                  )}
+                </span>
                 {it.label}
               </Link>
             </li>
@@ -51,6 +90,7 @@ export function BottomNav() {
 /** Desktop sidebar links. */
 export function SideNav() {
   const pathname = usePathname();
+  const invites = useInvites();
   return (
     <nav className="hidden md:block">
       <ul className="flex flex-col gap-1">
@@ -69,6 +109,11 @@ export function SideNav() {
               >
                 <it.icon className="size-4.5" strokeWidth={active ? 2.5 : 2} />
                 {it.label}
+                {it.href === "/games" && invites > 0 && (
+                  <span className="ml-auto grid min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-5 text-white">
+                    {invites}
+                  </span>
+                )}
               </Link>
             </li>
           );

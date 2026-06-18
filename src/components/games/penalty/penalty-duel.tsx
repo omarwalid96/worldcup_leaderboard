@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { celebrateSave, haptic } from "@/lib/celebrate";
 import { useGameRoom } from "@/components/games/use-game-room";
-import { applyMove } from "@/lib/games/actions";
+import { applyMove, respondToChallenge } from "@/lib/games/actions";
 import type { GameComponentProps, PlayerInfo } from "@/lib/games/types";
 import {
   actorSlot,
@@ -66,6 +66,40 @@ function PlayerTag({
   );
 }
 
+/** A 5v5-style row of kick markers: ✓ green = scored, ✗ red = missed/saved. */
+function ShootoutRow({ label, results }: { label: string; results: boolean[] }) {
+  // Show at least 5 slots (standard shootout), more if it went to sudden death.
+  const slots = Math.max(5, results.length);
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-16 shrink-0 truncate text-[11px] font-medium text-muted-foreground">
+        {label}
+      </span>
+      <div className="flex flex-wrap gap-1">
+        {Array.from({ length: slots }).map((_, i) => {
+          const taken = i < results.length;
+          const scored = results[i];
+          return (
+            <span
+              key={i}
+              className={cn(
+                "grid size-4 place-items-center rounded-full text-[9px] font-bold",
+                !taken
+                  ? "border border-border/50 bg-transparent text-transparent"
+                  : scored
+                    ? "bg-success/80 text-background"
+                    : "bg-destructive/80 text-background",
+              )}
+            >
+              {taken ? (scored ? "✓" : "✗") : "•"}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function PenaltyDuel({
   matchId,
   initialMatch,
@@ -98,11 +132,12 @@ export function PenaltyDuel({
   const iAmShooter = state.phase === "shoot";
   const iShootRole = state.shooter === mySlot;
 
-  // Animate the ball when the opponent shoots (broadcast for instant feel).
+  // When the opponent has taken their shot, re-fetch so the keeper sees it's
+  // their turn to dive — but NEVER the direction (that would defeat the guess).
+  // The actual direction is revealed only when the kick resolves (kicks[] below).
   useEffect(() => {
-    return onBroadcast("shot", (payload) => {
-      const dir = (payload as { dir?: Dir })?.dir;
-      if (dir) setLastShot(dir);
+    return onBroadcast("sync", () => {
+      /* handled by useGameRoom's resync; nothing leaked here */
     });
   }, [onBroadcast]);
 
@@ -132,10 +167,8 @@ export function PenaltyDuel({
   function send(move: { kind: "shoot"; dir: Dir } | { kind: "dive"; dir: Dir }) {
     if (isPending) return;
     haptic();
-    if (move.kind === "shoot") {
-      setLastShot(move.dir);
-      broadcast("shot", { dir: move.dir });
-    }
+    // NOTE: never broadcast the shot DIRECTION — the keeper must guess. The
+    // direction is revealed to both only when the kick resolves (kicks[] state).
     setError(null);
     startTransition(async () => {
       const res = await applyMove(matchId, move);
@@ -147,6 +180,24 @@ export function PenaltyDuel({
       if (res.match) setMatch(res.match);
       // …and tell the opponent to re-fetch the row immediately (broadcast isn't
       // RLS-gated, unlike postgres_changes on game_matches).
+      broadcast("sync", { at: Date.now() });
+    });
+  }
+
+  // Invitee (player2) accepts/declines the challenge from the match page itself,
+  // so tapping the push notification lands them on a working Accept screen.
+  const isInvitee = match.player2Id === currentUserId;
+  function respond(accept: boolean) {
+    if (isPending) return;
+    haptic();
+    setError(null);
+    startTransition(async () => {
+      const res = await respondToChallenge(matchId, accept);
+      if (!res.ok) {
+        setError(res.error ?? "Couldn't respond.");
+        return;
+      }
+      if (res.match) setMatch(res.match);
       broadcast("sync", { at: Date.now() });
     });
   }
@@ -164,10 +215,36 @@ export function PenaltyDuel({
   }
 
   if (pending) {
+    // Invitee sees Accept/Decline right here; challenger sees "waiting".
+    if (isInvitee) {
+      return (
+        <Centered>
+          <span className="text-3xl">⚽</span>
+          <p className="mt-2 text-sm font-medium">
+            {opp?.displayName ?? "Someone"} challenged you to a Penalty Shootout
+          </p>
+          <div className="mt-4 flex gap-3">
+            <Button onClick={() => respond(true)} disabled={isPending} className="h-11">
+              {isPending ? <Loader2 className="animate-spin" /> : "Accept"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => respond(false)}
+              disabled={isPending}
+              className="h-11"
+            >
+              Decline
+            </Button>
+          </div>
+          {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+        </Centered>
+      );
+    }
     return (
       <Centered>
-        <p className="text-sm text-muted-foreground">
-          Waiting for the challenge to be accepted…
+        <Loader2 className="size-7 animate-spin text-gold" />
+        <p className="mt-3 text-sm text-muted-foreground">
+          Waiting for {opp?.displayName ?? "your opponent"} to accept…
         </p>
       </Centered>
     );
@@ -244,6 +321,20 @@ export function PenaltyDuel({
         <PlayerTag player={me} score={scoreMine} active={myTurn} you />
         <span className="font-display text-xl text-muted-foreground">vs</span>
         <PlayerTag player={opp} score={scoreOpp} active={!myTurn} you={false} />
+      </div>
+
+      {/* Shootout tally — like a real 5v5: a dot per kick, green=scored, red=missed. */}
+      <div className="flex flex-col gap-1.5 rounded-xl border border-border/40 bg-card/40 px-3 py-2">
+        <ShootoutRow
+          label={me?.displayName ?? "You"}
+          results={state.kicks.filter((k) => k.shooter === mySlot).map((k) => k.goal)}
+        />
+        <ShootoutRow
+          label={opp?.displayName ?? "Opponent"}
+          results={state.kicks
+            .filter((k) => k.shooter !== mySlot)
+            .map((k) => k.goal)}
+        />
       </div>
 
       {/* Goal + pitch */}

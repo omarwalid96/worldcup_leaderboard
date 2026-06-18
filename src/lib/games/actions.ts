@@ -7,8 +7,18 @@ import { gameMatches, gameResults, profiles } from "@/db/schema";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { sendPushToUser } from "@/lib/notifications/send";
 import { getGameDefinition } from "./registry";
-import { getMatch } from "./queries";
+import { getMatch, countIncomingChallenges } from "./queries";
 import type { GameMatch, GameType, PlayerSlot, ReduceContext } from "./types";
+
+/**
+ * Lightweight count of pending incoming challenges for the current user — for
+ * the Games nav badge. Returns 0 when signed out. Cheap COUNT query.
+ */
+export async function getIncomingChallengeCount(): Promise<number> {
+  const user = await getCurrentUser();
+  if (!user) return 0;
+  return countIncomingChallenges(user.id);
+}
 
 export interface ActionResult {
   ok: boolean;
