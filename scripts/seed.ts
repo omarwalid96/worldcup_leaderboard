@@ -23,10 +23,12 @@ const sql = postgres(DATABASE_URL, { prepare: false, max: 1 });
 const BADGES = [
   { id: "first_exact", name: "Bullseye", description: "Predict your first exact scoreline.", icon: "🎯" },
   { id: "hat_trick", name: "Hat-trick", description: "Three exact scorelines.", icon: "🎩" },
-  { id: "hot_streak", name: "On Fire", description: "Correct results on 3 matchdays in a row.", icon: "🔥" },
+  { id: "hot_streak", name: "On Fire", description: "Correct results on 3 match-days in a row.", icon: "🔥" },
   { id: "double_or_nothing", name: "High Roller", description: "Land a double-down for points.", icon: "🎲" },
   { id: "group_guru", name: "Group Guru", description: "Score in every group-stage matchday.", icon: "🧠" },
   { id: "top_of_table", name: "Table Topper", description: "Sit at #1 on the leaderboard.", icon: "👑" },
+  { id: "sharpshooter", name: "Sharpshooter", description: "Five correct results.", icon: "🏹" },
+  { id: "perfect_day", name: "Perfect Day", description: "Every pick on a match-day correct.", icon: "☀️" },
 ] as const;
 
 async function main() {

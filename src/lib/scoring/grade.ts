@@ -118,7 +118,8 @@ export async function gradeFinishedMatches(): Promise<
  * (user_id, badge_id) + onConflictDoNothing), so re-running is safe.
  *
  * Badge ids must exist (seeded in scripts/seed.ts):
- *   first_exact, hat_trick, double_or_nothing, top_of_table, hot_streak
+ *   first_exact, hat_trick, double_or_nothing, top_of_table, hot_streak,
+ *   sharpshooter, perfect_day
  */
 export async function awardBadges(): Promise<void> {
   // Per-user aggregates over graded predictions.
@@ -131,6 +132,9 @@ export async function awardBadges(): Promise<void> {
           and ${predictions.awayPick} = ${matches.awayScore})::int`,
       ddWins: sql<number>`count(*) filter (
         where ${predictions.isDoubleDown} and ${predictions.pointsAwarded} > 0)::int`,
+      // Correct-RESULT picks (>=1 pt), cumulative — for Sharpshooter.
+      correctResults: sql<number>`count(*) filter (
+        where ${predictions.pointsAwarded} > 0)::int`,
     })
     .from(predictions)
     .innerJoin(matches, eq(matches.id, predictions.matchId))
@@ -152,6 +156,25 @@ export async function awardBadges(): Promise<void> {
     bestStreak.set(r.userId, Math.max(bestStreak.get(r.userId) ?? 0, r.streak));
   }
 
+  // Perfect Day: a calendar match-day on which EVERY graded pick the user made
+  // was correct (>=1 pt) and they made at least one pick that day. We find the
+  // set of users who have at least one such day.
+  const perfectRows = await db
+    .select({
+      userId: predictions.userId,
+      day: sql<string>`(${matches.kickoffUtc} at time zone 'UTC')::date`,
+      graded: sql<number>`count(*) filter (where ${predictions.pointsAwarded} is not null)::int`,
+      correct: sql<number>`count(*) filter (where ${predictions.pointsAwarded} > 0)::int`,
+    })
+    .from(predictions)
+    .innerJoin(matches, eq(matches.id, predictions.matchId))
+    .groupBy(predictions.userId, sql`(${matches.kickoffUtc} at time zone 'UTC')::date`);
+  const perfectDayUsers = new Set<string>();
+  for (const r of perfectRows) {
+    // All graded picks that day correct, and at least one graded pick.
+    if (r.graded > 0 && r.graded === r.correct) perfectDayUsers.add(r.userId);
+  }
+
   const toAward: { userId: string; badgeId: string }[] = [];
   for (const s of stats) {
     if (s.exactHits >= 1) toAward.push({ userId: s.userId, badgeId: "first_exact" });
@@ -160,6 +183,9 @@ export async function awardBadges(): Promise<void> {
     if (leaderIds.has(s.userId)) toAward.push({ userId: s.userId, badgeId: "top_of_table" });
     if ((bestStreak.get(s.userId) ?? 0) >= 3)
       toAward.push({ userId: s.userId, badgeId: "hot_streak" });
+    if (s.correctResults >= 5) toAward.push({ userId: s.userId, badgeId: "sharpshooter" });
+    if (perfectDayUsers.has(s.userId))
+      toAward.push({ userId: s.userId, badgeId: "perfect_day" });
   }
 
   for (const a of toAward) {
@@ -300,19 +326,24 @@ export async function recomputeLeagueStandings(leagueId: string): Promise<void> 
 }
 
 /**
- * Streak = consecutive most-recent matchdays (with >=1 graded pick) where the
- * user got at least one correct result, capped via streakBonus(). Returns the
- * raw consecutive-day count (the bonus is applied at scoring time elsewhere).
+ * Streak = consecutive most-recent MATCH-DAYS (calendar dates that had matches
+ * the user predicted + got graded) where the user landed at least one correct
+ * result. Keyed on the match's calendar date, not the group "matchday" (all
+ * group games share matchday=1). Rest days never break the streak because we
+ * only have rows for days the user actually played — a gap in the schedule is
+ * simply absent, so consecutive *played* days stay consecutive here.
+ *
+ * Returns the raw consecutive-day count (the bonus is applied at scoring time).
  */
 async function computeStreaks(userIds: string[]): Promise<Map<string, number>> {
   const result = new Map<string, number>();
   if (userIds.length === 0) return result;
 
-  // For each user, per matchday: did they get >=1 correct result?
+  // For each user, per calendar match-day: did they get >=1 correct result?
   const rows = await db
     .select({
       userId: predictions.userId,
-      matchday: matches.matchday,
+      day: sql<string>`to_char((${matches.kickoffUtc} at time zone 'UTC')::date, 'YYYY-MM-DD')`,
       hit: sql<number>`max(case when ${predictions.pointsAwarded} > 0 then 1 else 0 end)::int`,
     })
     .from(predictions)
@@ -320,17 +351,18 @@ async function computeStreaks(userIds: string[]): Promise<Map<string, number>> {
     .where(
       and(inArray(predictions.userId, userIds), sql`${predictions.pointsAwarded} is not null`),
     )
-    .groupBy(predictions.userId, matches.matchday);
+    .groupBy(predictions.userId, sql`(${matches.kickoffUtc} at time zone 'UTC')::date`);
 
-  const byUser = new Map<string, { matchday: number; hit: number }[]>();
+  const byUser = new Map<string, { day: string; hit: number }[]>();
   for (const r of rows) {
     const arr = byUser.get(r.userId) ?? [];
-    arr.push({ matchday: r.matchday, hit: r.hit });
+    arr.push({ day: r.day, hit: r.hit });
     byUser.set(r.userId, arr);
   }
 
   for (const userId of userIds) {
-    const days = (byUser.get(userId) ?? []).sort((a, b) => b.matchday - a.matchday);
+    // Most-recent day first.
+    const days = (byUser.get(userId) ?? []).sort((a, b) => b.day.localeCompare(a.day));
     let streak = 0;
     for (const d of days) {
       if (d.hit > 0) streak++;
