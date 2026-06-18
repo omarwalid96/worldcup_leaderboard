@@ -71,23 +71,52 @@ DB / admin scripts (all load `.env.local`): see "Scripts" below.
   done. See README "Testing policy".
 - Past incident: seeding fake predictions + `regrade=1` on live tables wiped real
   standings and a user's pick. Don't repeat it.
+- **Always `npm run db:backup` before any migration or regrade.** It writes a
+  timestamped JSON of every table to `backups/` AND a `backup_log` row; the
+  regrade cron (`src/lib/cron/backup-guard.ts`) refuses (HTTP 412) without a
+  fresh backup. Restore = re-insert from the JSON.
+- **Adding a column the app reads is safe**: edit `schema.ts` + an idempotent
+  `ALTER TABLE … ADD COLUMN IF NOT EXISTS` migration, apply it to the live DB
+  yourself (back up first), then push the code. Nullable additive columns touch
+  no existing data. (Done this way for `business_card_url`, `quote`.)
+- The pattern for applying a one-off SQL/recompute against live data: write a
+  throwaway `node --env-file=.env.local x.mjs` using `postgres` (the pooler host
+  `aws-0-eu-west-1.pooler.supabase.com`), run, delete the file. To call the real
+  server-only `grade.ts` functions from a script, `tsx` needs a stub:
+  `mkdir -p node_modules/server-only && echo 'module.exports={}' > …/index.js`
+  (+ a minimal package.json), run, then remove it.
 
 ## Core domain rules (server-authoritative)
 - **Scoring** (`src/lib/scoring/index.ts`): exact scoreline = **3**, correct
-  outcome (right winner or both-draw) = **1**, wrong = **0**. **Double-down** ×2
-  (one per matchday). Pure + unit-testable.
+  outcome (right winner or both-draw) = **1**, wrong = **0**. Knockout exact-draw
+  = **2** (winner decided on pens); pens bonus +1 winner / +1 exact (knockout
+  only). Pure + unit-testable.
+- **Double-down (×2) is DISABLED in the UI** but the scoring/DB logic is intact
+  (commented out, search "disabled for now"). `scorePrediction` still ×2 if the
+  `is_double_down` flag is set; new picks can't set it. `streakBonus()` is
+  defined but **never applied** to standings — streak is display-only.
 - **Prediction window** (`src/lib/time/usday.ts`): a pick can be created/edited
-  in the **12 hours before kickoff**, then locks at kickoff. `isPredictable()`
-  is the gate. Enforced in the Server Action AND in RLS (defense-in-depth).
+  starting **24 hours before kickoff** (`PREDICTION_WINDOW_HOURS`), then locks at
+  kickoff. `isPredictable()` is the gate. Enforced in the Server Action AND RLS.
 - **Kickoff lock**: enforced server-side (`now()` vs `kickoff_utc`) in
   `savePrediction` AND Postgres RLS — never trust the client clock.
+- **`matches.matchday` is the group ROUND (1/2/3), NOT a calendar day** — all 24
+  first-round group games share `matchday=1`. So anything "per matchday" that
+  should mean "per day" must group by `(kickoff_utc::date)` instead. Profile
+  charts and streaks already do this; see below.
 - **Grading** (`src/lib/scoring/grade.ts`): `gradeFinishedMatches()` grades
   finished+ungraded predictions (idempotent: only when `points_awarded IS NULL`),
   then `recomputeLeagueStandings()` sets `total_points = baseline_points +
-  sum(graded)`, ranks (standard competition ranking), snapshots points_history +
-  rank_history, awards badges.
+  sum(graded)`, dense-ranks (1,1,2,3…), snapshots points/rank_history, awards
+  badges. `computeStreaks()` counts consecutive most-recent **calendar
+  match-days** with a correct pick (rest days don't break it).
 - **`standings.baseline_points`**: admin-set starting score; total = baseline +
   graded. Survives re-grading. (Set manually per the league's chosen start.)
+- **Profile charts** (`src/lib/profile/stats.ts`): points/rank/participation are
+  computed **live from graded predictions grouped by calendar date** (NOT from
+  the `points_history`/`rank_history` snapshot tables, which key on the bogus
+  group-round matchday and are effectively legacy). Points series starts at the
+  user's baseline so it ends at their real total.
 - All times stored **UTC**; converted to the user's timezone only for display
   (`KickoffTime` resolves the browser tz on mount).
 
@@ -109,6 +138,15 @@ DB / admin scripts (all load `.env.local`): see "Scripts" below.
 - Scheduling: Vercel Hobby crons only run daily (unreliable for sub-hourly), so
   an **external scheduler (cron-job.org)** pings the endpoints every ~10 min.
   `.github/workflows/cron.yml` is a fallback (GitHub throttles scheduled runs).
+- `runPipeline` writes a `cron_log` heartbeat (`src/lib/cron/log.ts`) so you can
+  confirm the cron is firing. `standings.last_synced_at` only bumps when a score
+  actually changes — a stale value is NOT proof the cron is down.
+- **Live UI**: `LiveRefresher` (`src/components/match/live-refresher.tsx`) is
+  mounted only when a match is `live` and `router.refresh()`es every 5 min from
+  the visible tab — it re-runs the page's server query (our DB), never the
+  football API. While a match is live, the "League picks" list shows
+  **provisional** points (`+3/+1/0`) computed client-side from the current score
+  via `basePoints()`; finished matches show the real graded points.
 
 ## Auth
 - Preset username + password (no email/OAuth). Username → synthetic email
@@ -119,21 +157,35 @@ DB / admin scripts (all load `.env.local`): see "Scripts" below.
 
 ## Key directories
 - `src/app/(app)/*` — authenticated pages (dashboard, matches, matches/[id],
-  leaderboard, leagues, profile, settings, u/[username]); `layout.tsx` guards via
-  `requireProfile()`. `src/app/api/cron/{sync,grade,notify}` — cron endpoints.
+  leaderboard, leagues, profile, settings, badges, u/[username]); `layout.tsx`
+  guards via `requireProfile()`. `src/app/api/cron/{sync,grade,notify}` — cron.
 - `src/lib/{scoring,football,predictions,leaderboard,leagues,profile,
   notifications,avatar,cron,time,auth,supabase}` — domain logic.
 - `src/components/{match,leaderboard,leagues,profile,avatar,layout,
   notifications,ui}`.
 - `drizzle/*.sql` — migrations: `0000` schema, `0001` RLS + auth trigger +
-  cross-schema FK, then feature migrations. NOTE: migration filenames are
-  applied **lexically** by `scripts/migrate.ts` (not drizzle-kit), and there are
-  duplicate `0006_*` names (harmless — order within a number doesn't matter here).
-  Each is idempotent (`IF NOT EXISTS` / guarded). RLS lives only in SQL, never
-  in `schema.ts`.
+  cross-schema FK, then feature migrations through `0009` (business card, quote).
+  NOTE: filenames are applied **lexically** by `scripts/migrate.ts` (not
+  drizzle-kit), and there are duplicate `0006_*` names (harmless — order within a
+  number doesn't matter here). Each is idempotent (`IF NOT EXISTS` / guarded).
+  RLS lives only in SQL, never in `schema.ts`.
+
+## Profiles: DB-only fields + badges
+- `profiles.business_card_url` (nullable) — a per-user business-card image, shown
+  as a small tappable/zoomable thumbnail on the profile when set. **No app UI to
+  edit it** — set the URL directly in the DB. Null → section hidden.
+- `profiles.quote` (nullable) — a short tagline; **editable in Settings**. Shown
+  on the home leader spotlight under the user's name when they're the league #1
+  (handles multiple tied leaders).
+- **Badges** (`scripts/seed.ts` `BADGES`, awarded in `grade.ts` `awardBadges()`):
+  `first_exact`, `hat_trick`, `hot_streak` (3 match-days in a row), `top_of_table`,
+  `sharpshooter` (5 correct results), `perfect_day` (all picks one day correct),
+  `double_or_nothing` (legacy — double-down disabled), `group_guru` (seeded, no
+  award rule yet). Descriptions surfaced on the `/badges` page.
 
 ## Scripts (all read `.env.local`)
 - `db:seed` — upsert fixtures + badges from the provider
+- `db:backup` — full logical JSON snapshot → `backups/` (+ `backup_log` row)
 - `db:migrate:all` — apply every `drizzle/*.sql` in order
 - `users:create` / `users:rename` / `users:password`
 - `db:push` is interactive (will hang on prompts) — prefer explicit SQL or migrations.
