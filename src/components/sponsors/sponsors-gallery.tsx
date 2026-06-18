@@ -11,6 +11,7 @@ import {
   removeSponsor,
   type SponsorRow,
 } from "@/lib/sponsors/actions";
+import { compressImage } from "@/lib/image/compress";
 
 const MAX = 10;
 
@@ -32,17 +33,12 @@ export function SponsorsGallery({ initial }: { initial: SponsorRow[] }) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please choose an image file.");
-      return;
-    }
-    if (file.size > 3 * 1024 * 1024) {
-      toast.error("Image must be smaller than 3MB.");
-      return;
-    }
-    const fd = new FormData();
-    fd.append("file", file);
     startTransition(async () => {
+      // Downscale/convert client-side first — handles big iPhone photos & HEIC,
+      // and keeps the upload well under the server-action body limit.
+      const upload = await compressImage(file);
+      const fd = new FormData();
+      fd.append("file", upload);
       const res = await uploadSponsor(fd);
       if (res.ok && res.row) {
         // Append the returned row directly — no client-side refetch/dynamic

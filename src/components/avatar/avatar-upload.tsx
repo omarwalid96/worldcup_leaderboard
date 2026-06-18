@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { uploadAvatar, removeAvatar } from "@/lib/avatar/actions";
+import { compressImage } from "@/lib/image/compress";
 
 function initialsOf(name: string) {
   return name
@@ -45,22 +46,20 @@ export function AvatarUpload({
     e.target.value = "";
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
+    if (!file.type.startsWith("image/") && !/\.(heic|heif)$/i.test(file.name)) {
       toast.error("Please choose an image file.");
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("Image must be smaller than 2MB.");
       return;
     }
 
     const localPreview = URL.createObjectURL(file);
     setPreview(localPreview);
 
-    const formData = new FormData();
-    formData.append("file", file);
-
     startTransition(async () => {
+      // Compress/convert client-side first (big iPhone photos & HEIC) so the
+      // upload stays under the Server Action body limit.
+      const upload = await compressImage(file);
+      const formData = new FormData();
+      formData.append("file", upload);
       const res = await uploadAvatar(formData);
       URL.revokeObjectURL(localPreview);
       setPreview(null);
