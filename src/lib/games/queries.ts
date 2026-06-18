@@ -122,6 +122,65 @@ export async function getGameRecord(userId: string): Promise<GameRecordRow[]> {
     .filter((r) => r.wins + r.losses + r.draws > 0);
 }
 
+export interface GameHistoryRow {
+  id: string;
+  gameType: GameType;
+  title: string;
+  emoji: string;
+  opponent: PlayerInfo | null;
+  /** 'won' | 'lost' | 'draw' from this user's perspective. */
+  result: "won" | "lost" | "draw";
+  /** Score from this user's perspective: { you, them }. */
+  score: { you: number; them: number } | null;
+  finishedAt: string;
+}
+
+/**
+ * Finished matches for a user, newest first — who they played, the result, and
+ * the score from their perspective. Powers the Games-tab match history.
+ */
+export async function getGameHistory(
+  userId: string,
+  limit = 30,
+): Promise<GameHistoryRow[]> {
+  const rows = await db
+    .select()
+    .from(gameMatches)
+    .where(
+      and(
+        eq(gameMatches.status, "finished"),
+        or(eq(gameMatches.player1Id, userId), eq(gameMatches.player2Id, userId)),
+      ),
+    )
+    .orderBy(desc(gameMatches.updatedAt))
+    .limit(limit);
+
+  const ids = rows.flatMap((r) => [r.player1Id, r.player2Id ?? ""]);
+  const players = await fetchPlayers(ids);
+
+  return rows.map((r) => {
+    const isP1 = r.player1Id === userId;
+    const oppId = isP1 ? r.player2Id : r.player1Id;
+    const def = getGameDefinition(r.gameType);
+    const raw = toScore(r.score);
+    const score = raw
+      ? { you: isP1 ? raw.p1 : raw.p2, them: isP1 ? raw.p2 : raw.p1 }
+      : null;
+    const result: "won" | "lost" | "draw" =
+      r.winnerId == null ? "draw" : r.winnerId === userId ? "won" : "lost";
+    return {
+      id: r.id,
+      gameType: r.gameType as GameType,
+      title: def?.title ?? r.gameType,
+      emoji: def?.emoji ?? "🎮",
+      opponent: oppId ? (players.get(oppId) ?? null) : null,
+      result,
+      score,
+      finishedAt: r.updatedAt.toISOString(),
+    };
+  });
+}
+
 /** Members the user can challenge (everyone but themselves). */
 export async function listOpponents(userId: string): Promise<PlayerInfo[]> {
   const rows = await db

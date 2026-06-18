@@ -1,18 +1,26 @@
 import type { Metadata } from "next";
 import { Gamepad2 } from "lucide-react";
 import { requireProfile } from "@/lib/auth/session";
-import { listMyMatches, listOpponents } from "@/lib/games/queries";
+import {
+  listMyMatches,
+  listOpponents,
+  getGameRecord,
+  getGameHistory,
+} from "@/lib/games/queries";
 import { playableGames } from "@/lib/games/registry";
 import { GamesHub } from "@/components/games/games-hub";
+import { GamesStats } from "@/components/games/games-stats";
 import type { GameDefinitionMeta } from "@/components/games/games-hub";
 
 export const metadata: Metadata = { title: "Games" };
 
 export default async function GamesPage() {
   const profile = await requireProfile();
-  const [matches, opponents] = await Promise.all([
+  const [matches, opponents, record, history] = await Promise.all([
     listMyMatches(profile.id),
     listOpponents(profile.id),
+    getGameRecord(profile.id),
+    getGameHistory(profile.id),
   ]);
 
   // Strip the (non-serializable) reducer/component from definitions for the client.
@@ -42,6 +50,8 @@ export default async function GamesPage() {
         opponents={opponents}
         currentUserId={profile.id}
       />
+
+      <GamesStats record={record} history={history} />
     </div>
   );
 }

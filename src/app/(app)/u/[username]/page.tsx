@@ -32,8 +32,6 @@ import {
   getUserBadges,
 } from "@/lib/profile/stats";
 import { getSessionProfile } from "@/lib/auth/session";
-import { getGameRecord } from "@/lib/games/queries";
-import { GamesRecordCard } from "@/components/games/games-record-card";
 
 export async function generateMetadata({
   params,
@@ -66,7 +64,6 @@ export default async function UserProfilePage({
     rankHistoryData,
     participationHistory,
     earnedBadges,
-    gameRecord,
   ] = await Promise.all([
     getProfileStats(profile.id),
     getUserPredictionHistory(profile.id),
@@ -75,7 +72,6 @@ export default async function UserProfilePage({
     getRankHistory(profile.id),
     getParticipationHistory(profile.id),
     getUserBadges(profile.id),
-    getGameRecord(profile.id),
   ]);
 
   const initials = profile.displayName
@@ -235,9 +231,6 @@ export default async function UserProfilePage({
           )}
         </CardContent>
       </Card>
-
-      {/* Games record — only if this user has played at least one game. */}
-      {gameRecord.length > 0 && <GamesRecordCard record={gameRecord} />}
 
       {/* Pick history */}
       <Card className="border-border/60 bg-card/70">

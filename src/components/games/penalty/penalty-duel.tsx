@@ -77,6 +77,8 @@ export function PenaltyDuel({
   const [error, setError] = useState<string | null>(null);
   // The shot direction the keeper just saw the ball fly (for animation).
   const [lastShot, setLastShot] = useState<Dir | null>(null);
+  // Transient GOAL!/SAVED! verdict shown after each kick resolves.
+  const [verdict, setVerdict] = useState<{ goal: boolean; key: number } | null>(null);
 
   const state = match.state as PenaltyState;
   const isP1 = match.player1Id === currentUserId;
@@ -103,6 +105,22 @@ export function PenaltyDuel({
       if (dir) setLastShot(dir);
     });
   }, [onBroadcast]);
+
+  // When a new kick resolves (the kicks array grows), show GOAL!/SAVED! and
+  // animate the ball to where it actually went. Drives off the authoritative
+  // state so BOTH players see the verdict regardless of who acted.
+  const kickCount = state.kicks.length;
+  useEffect(() => {
+    if (kickCount === 0) return;
+    const last = state.kicks[kickCount - 1];
+    setLastShot(last.dir);
+    setVerdict({ goal: last.goal, key: kickCount });
+    haptic(last.goal ? 30 : 15);
+    const t = setTimeout(() => setVerdict(null), 1600);
+    return () => clearTimeout(t);
+    // Only when a NEW kick lands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kickCount]);
 
   // Confetti when I win.
   useEffect(() => {
@@ -231,7 +249,7 @@ export function PenaltyDuel({
       {/* Goal + pitch */}
       <Card className="border-border/60 bg-card/70">
         <CardContent className="p-4">
-          <Goal lastShot={lastShot} />
+          <Goal lastShot={lastShot} verdict={verdict} />
         </CardContent>
       </Card>
 
@@ -281,19 +299,44 @@ export function PenaltyDuel({
   );
 }
 
-/** The goal mouth with an animated ball flying to the last shot direction. */
-function Goal({ lastShot }: { lastShot: Dir | null }) {
+/**
+ * The goal mouth with an animated ball flying to the last shot direction, the
+ * keeper diving, and a GOAL!/SAVED! verdict banner once a kick resolves.
+ */
+function Goal({
+  lastShot,
+  verdict,
+}: {
+  lastShot: Dir | null;
+  verdict: { goal: boolean; key: number } | null;
+}) {
   const x = lastShot === "L" ? -90 : lastShot === "R" ? 90 : 0;
   return (
-    <div className="relative mx-auto h-40 w-full max-w-sm">
+    <div className="relative mx-auto h-40 w-full max-w-sm overflow-hidden">
       {/* Net */}
       <div className="absolute inset-x-4 top-2 h-28 rounded-t-md border-4 border-b-0 border-foreground/30 bg-[repeating-linear-gradient(45deg,transparent,transparent_8px,var(--border)_8px,var(--border)_9px)]" />
       {/* Grass */}
       <div className="absolute inset-x-0 bottom-0 h-10 rounded-md bg-success/20" />
+
+      {/* Keeper — dives to where the ball went once a kick has resolved. */}
+      <motion.div
+        key={`keeper-${verdict?.key ?? "idle"}`}
+        initial={{ x: 0, y: 0, rotate: 0 }}
+        animate={
+          verdict
+            ? { x: x * 0.6, y: -6, rotate: lastShot === "M" ? 0 : x < 0 ? -35 : 35 }
+            : { x: 0, y: 0, rotate: 0 }
+        }
+        transition={{ type: "spring", stiffness: 200, damping: 16 }}
+        className="absolute bottom-9 left-1/2 -ml-3 text-2xl"
+      >
+        🧤
+      </motion.div>
+
       {/* Ball */}
       <AnimatePresence mode="wait">
         <motion.div
-          key={`${lastShot}`}
+          key={`${lastShot}-${verdict?.key ?? 0}`}
           initial={{ y: 60, x: 0, scale: 1, opacity: 0 }}
           animate={{ y: lastShot ? -10 : 60, x, scale: lastShot ? 0.7 : 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 220, damping: 18 }}
@@ -301,6 +344,29 @@ function Goal({ lastShot }: { lastShot: Dir | null }) {
         >
           ⚽
         </motion.div>
+      </AnimatePresence>
+
+      {/* GOAL! / SAVED! verdict */}
+      <AnimatePresence>
+        {verdict && (
+          <motion.div
+            key={`verdict-${verdict.key}`}
+            initial={{ scale: 0.4, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.6, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 18 }}
+            className="absolute inset-0 flex items-center justify-center"
+          >
+            <span
+              className={cn(
+                "font-display text-3xl tracking-wide drop-shadow",
+                verdict.goal ? "text-success" : "text-destructive",
+              )}
+            >
+              {verdict.goal ? "GOAL! ⚽" : "SAVED! 🧤"}
+            </span>
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   );
