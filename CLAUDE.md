@@ -188,6 +188,14 @@ DB / admin scripts (all load `.env.local`): see "Scripts" below.
 - `db:backup` — full logical JSON snapshot → `backups/` (+ `backup_log` row)
 - `db:migrate:all` — apply every `drizzle/*.sql` in order
 - `users:create` / `users:rename` / `users:password`
+  - `users:rename` changes only `profiles.display_name` (the UI name); the login
+    username is unchanged.
+  - `users:rename-login -- <old> <new>` changes the **login** username: updates
+    `profiles.username` + `auth.users.email` (`<name>@groupstage.local`) in one
+    guarded transaction. The **UID is preserved**, so all predictions/standings/
+    badges/history (keyed by `profiles.id`) and the password (keyed by the auth
+    user id) survive untouched — the user logs in with the new username + same
+    password. New username must match `^[a-z0-9_]{3,20}$`. Back up first.
 - `db:push` is interactive (will hang on prompts) — prefer explicit SQL or migrations.
 
 ## When verifying UI
