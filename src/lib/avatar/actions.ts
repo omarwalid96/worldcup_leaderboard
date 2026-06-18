@@ -33,6 +33,28 @@ function revalidateAvatarSurfaces() {
   revalidatePath("/", "layout");
 }
 
+/** Storage path (after the bucket) for a public object URL, or null. */
+function storagePathFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const marker = `/${BUCKET}/`;
+  const i = url.indexOf(marker);
+  return i === -1 ? null : url.slice(i + marker.length);
+}
+
+/** Best-effort delete of a previous avatar file (prevents orphan buildup). */
+async function deleteAvatarFile(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  url: string | null | undefined,
+) {
+  const path = storagePathFromUrl(url);
+  if (!path) return;
+  try {
+    await supabase.storage.from(BUCKET).remove([path]);
+  } catch {
+    // ignore — orphan cleanup is best-effort, not worth failing the request
+  }
+}
+
 /**
  * Uploads a new avatar image for the current user to Supabase Storage and
  * persists its public URL on the profile. Validates type + size server-side.
@@ -70,16 +92,24 @@ export async function uploadAvatar(formData: FormData): Promise<AvatarResult> {
     data: { publicUrl },
   } = supabase.storage.from(BUCKET).getPublicUrl(path);
 
+  // The previous avatar file is now orphaned — delete it so storage doesn't
+  // accumulate stale images on every change.
+  const prevUrl = profile.avatarUrl;
+
   await db
     .update(profiles)
     .set({ avatarUrl: publicUrl })
     .where(eq(profiles.id, profile.id));
 
+  if (prevUrl && storagePathFromUrl(prevUrl) !== path) {
+    await deleteAvatarFile(supabase, prevUrl);
+  }
+
   revalidateAvatarSurfaces();
   return { ok: true, url: publicUrl };
 }
 
-/** Clears the current user's avatar URL. */
+/** Clears the current user's avatar URL and deletes its storage file. */
 export async function removeAvatar(): Promise<AvatarResult> {
   const profile = await requireProfile();
 
@@ -87,6 +117,11 @@ export async function removeAvatar(): Promise<AvatarResult> {
     .update(profiles)
     .set({ avatarUrl: null })
     .where(eq(profiles.id, profile.id));
+
+  if (profile.avatarUrl) {
+    const supabase = await createSupabaseServerClient();
+    await deleteAvatarFile(supabase, profile.avatarUrl);
+  }
 
   revalidateAvatarSurfaces();
   return { ok: true, url: null };
