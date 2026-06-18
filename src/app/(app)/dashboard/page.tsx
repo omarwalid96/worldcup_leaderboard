@@ -5,17 +5,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MatchCard } from "@/components/match/match-card";
 import { LeagueLeaders } from "@/components/leaderboard/league-leaders";
+import { SponsorsGallery } from "@/components/sponsors/sponsors-gallery";
 import { requireProfile } from "@/lib/auth/session";
 import { getPredictableMatches } from "@/lib/matches/queries";
 import { getMainLeagueLeaders } from "@/lib/leaderboard/queries";
+import { listSponsors } from "@/lib/sponsors/actions";
 
 export const metadata: Metadata = { title: "Home" };
 
 export default async function DashboardPage() {
   const profile = await requireProfile();
-  const [openNow, leaders] = await Promise.all([
+  const [openNow, leaders, sponsors] = await Promise.all([
     getPredictableMatches(profile.id),
     getMainLeagueLeaders(),
+    listSponsors(),
   ]);
 
   return (
@@ -104,6 +107,9 @@ export default async function DashboardPage() {
           </Card>
         )}
       </section>
+
+      {/* Sponsors gallery — shared, any member can add (up to 10). */}
+      <SponsorsGallery initial={sponsors} />
     </div>
   );
 }

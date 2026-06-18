@@ -210,6 +210,22 @@ export const userBadges = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.badgeId] })],
 );
 
+/**
+ * Shared "Sponsors" gallery shown on the home dashboard. A single global list
+ * (not per-user) capped at 10 images, enforced in the upload action. Any member
+ * can add or remove any image. `uploadedBy` is informational.
+ */
+export const sponsors = pgTable("sponsors", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  imageUrl: text("image_url").notNull(),
+  uploadedBy: uuid("uploaded_by").references(() => profiles.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 /** Per-user rank snapshot per matchday per league, for the rank-over-time chart. */
 export const rankHistory = pgTable(
   "rank_history",
