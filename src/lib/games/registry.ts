@@ -12,6 +12,8 @@ import {
   createInitialPenaltyState,
 } from "./penalty/reducer";
 import { PenaltyDuel } from "@/components/games/penalty/penalty-duel";
+import { triviaReducer, createInitialTriviaState } from "./trivia/reducer";
+import { TriviaDuel } from "@/components/games/trivia/trivia-duel";
 
 export const GAME_REGISTRY: Record<GameType, GameDefinition> = {
   penalty_duel: {
@@ -29,14 +31,12 @@ export const GAME_REGISTRY: Record<GameType, GameDefinition> = {
     type: "trivia_duel",
     title: "Trivia Duel",
     emoji: "🧠",
-    blurb: "Five World Cup questions, head to head. (Coming soon.)",
+    blurb: "Five World Cup questions, head to head.",
     mode: "simultaneous",
     minPlayers: 2,
-    // Placeholder until Game agent B lands; comingSoon hides it from the hub.
-    reducer: ((state) => ({ state })) as GameDefinition["reducer"],
-    createInitialState: () => ({}),
-    component: PenaltyDuel, // never rendered while comingSoon
-    comingSoon: true,
+    reducer: triviaReducer as GameDefinition["reducer"],
+    createInitialState: () => createInitialTriviaState(),
+    component: TriviaDuel,
   },
 };
 

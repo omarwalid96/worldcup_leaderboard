@@ -257,6 +257,26 @@ export function GamesHub({
           ))}
         </div>
       </section>
+
+      {/* Local Party Mode */}
+      <section className="flex flex-col gap-2">
+        <h2 className="text-sm font-semibold text-muted-foreground">
+          Local Party Games
+        </h2>
+        <Card className="border-border/60 bg-card/70 transition-colors hover:border-gold/40">
+          <Link href="/games/trivia-party">
+            <CardHeader className="flex-row items-center gap-3 space-y-0">
+              <span className="text-3xl">🎉</span>
+              <CardTitle className="text-base">Trivia Party (Local)</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <p className="text-sm text-muted-foreground">
+                Pass the phone around in the same room. No network or accounts needed.
+              </p>
+            </CardContent>
+          </Link>
+        </Card>
+      </section>
     </div>
   );
 }
