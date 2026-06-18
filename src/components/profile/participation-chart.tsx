@@ -32,7 +32,11 @@ export function ParticipationChart({ data }: Props) {
   return (
     <div className="h-44 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
+        <BarChart
+          data={chartData}
+          margin={{ top: 8, right: 8, bottom: 0, left: -20 }}
+          barCategoryGap="30%"
+        >
           <XAxis
             dataKey="label"
             tick={{ fontSize: 11, fill: "oklch(0.708 0.004 286)" }}
@@ -65,12 +69,16 @@ export function ParticipationChart({ data }: Props) {
             stackId="a"
             fill="oklch(0.65 0.15 145)"
             radius={[0, 0, 0, 0]}
+            maxBarSize={56}
+            isAnimationActive={false}
           />
           <Bar
             dataKey="missed"
             stackId="a"
             fill="oklch(0.35 0.02 286)"
             radius={[3, 3, 0, 0]}
+            maxBarSize={56}
+            isAnimationActive={false}
           />
         </BarChart>
       </ResponsiveContainer>

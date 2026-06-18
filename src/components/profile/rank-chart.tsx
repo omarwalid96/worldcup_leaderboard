@@ -71,6 +71,7 @@ export function RankChart({ data }: Props) {
             strokeWidth={2.5}
             dot={{ r: 2.5, fill: "oklch(0.796 0.133 86.3)" }}
             activeDot={{ r: 4 }}
+            isAnimationActive={false}
           />
         </LineChart>
       </ResponsiveContainer>

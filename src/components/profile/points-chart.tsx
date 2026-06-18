@@ -20,10 +20,16 @@ export function PointsChart({ data }: { data: PointsPoint[] }) {
     );
   }
 
-  const chartData = data.map((d) => ({
+  const points = data.map((d) => ({
     label: `MD${d.matchday}`,
     points: d.cumulativePoints,
   }));
+
+  // A single matchday can't draw an area (a line needs two points), so it would
+  // render as a lone floating dot. Prepend a "Start" baseline at 0 so the very
+  // first matchday shows a proper rising area instead of a dot in space.
+  const chartData =
+    points.length === 1 ? [{ label: "Start", points: 0 }, ...points] : points;
 
   return (
     <div className="h-44 w-full">
@@ -47,6 +53,7 @@ export function PointsChart({ data }: { data: PointsPoint[] }) {
             tickLine={false}
             width={28}
             allowDecimals={false}
+            domain={[0, "auto"]}
           />
           <Tooltip
             cursor={{ stroke: "oklch(0.796 0.133 86.3)", strokeOpacity: 0.3 }}
@@ -67,6 +74,7 @@ export function PointsChart({ data }: { data: PointsPoint[] }) {
             fill="url(#goldFill)"
             dot={{ r: 2.5, fill: "oklch(0.796 0.133 86.3)" }}
             activeDot={{ r: 4 }}
+            isAnimationActive={false}
           />
         </AreaChart>
       </ResponsiveContainer>

@@ -12,7 +12,7 @@ import {
   PieChart,
   BarChart2,
 } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ZoomableAvatar } from "@/components/avatar/zoomable-avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PredictionHistory } from "@/components/profile/prediction-history";
 import { PointsChart } from "@/components/profile/points-chart";
@@ -121,14 +121,13 @@ export default async function UserProfilePage({
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Avatar className="size-16 border border-border/60">
-          {profile.avatarUrl && (
-            <AvatarImage src={profile.avatarUrl} alt={profile.displayName} />
-          )}
-          <AvatarFallback className="bg-primary/15 text-xl font-semibold text-primary">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
+        <ZoomableAvatar
+          src={profile.avatarUrl}
+          alt={profile.displayName}
+          fallback={initials}
+          className="size-16 border border-border/60"
+          fallbackClassName="bg-primary/15 text-xl font-semibold text-primary"
+        />
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
             {profile.displayName}

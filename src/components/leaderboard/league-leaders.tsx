@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import confetti from "canvas-confetti";
 import { Crown } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ZoomableAvatar } from "@/components/avatar/zoomable-avatar";
 import type { LeagueLeaders } from "@/lib/leaderboard/queries";
 
 function initials(name: string) {
@@ -64,27 +64,28 @@ export function LeagueLeaders({ data }: { data: LeagueLeaders }) {
 
         <div className="flex flex-wrap items-start justify-center gap-x-5 gap-y-2">
           {data.leaders.map((l) => (
-            <Link
-              key={l.userId}
-              href={`/u/${l.username}`}
-              className="flex flex-col items-center gap-1"
-            >
+            <div key={l.userId} className="flex flex-col items-center gap-1">
               <div className="relative">
                 <Crown
-                  className="absolute -top-2.5 left-1/2 size-3.5 -translate-x-1/2 fill-gold text-gold drop-shadow"
+                  className="pointer-events-none absolute -top-2.5 left-1/2 z-10 size-3.5 -translate-x-1/2 fill-gold text-gold drop-shadow"
                   aria-hidden
                 />
-                <Avatar className="size-11 border-2 border-gold shadow-md shadow-gold/30">
-                  {l.avatarUrl && <AvatarImage src={l.avatarUrl} alt={l.displayName} />}
-                  <AvatarFallback className="bg-gold/15 text-sm font-semibold text-gold">
-                    {initials(l.displayName)}
-                  </AvatarFallback>
-                </Avatar>
+                {/* Tap the avatar to zoom; tap the name to open the profile. */}
+                <ZoomableAvatar
+                  src={l.avatarUrl}
+                  alt={l.displayName}
+                  fallback={initials(l.displayName)}
+                  className="size-11 border-2 border-gold shadow-md shadow-gold/30"
+                  fallbackClassName="bg-gold/15 text-sm font-semibold text-gold"
+                />
               </div>
-              <span className="max-w-20 truncate text-xs font-medium">
+              <Link
+                href={`/u/${l.username}`}
+                className="max-w-20 truncate text-xs font-medium hover:underline"
+              >
                 {l.displayName}
-              </span>
-            </Link>
+              </Link>
+            </div>
           ))}
         </div>
       </div>

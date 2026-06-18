@@ -45,6 +45,7 @@ export function OutcomeChart({ data }: Props) {
             paddingAngle={3}
             dataKey="value"
             stroke="none"
+            isAnimationActive={false}
           >
             {chartData.map((entry, idx) => {
               const colorIdx = LABELS.indexOf(entry.name);
