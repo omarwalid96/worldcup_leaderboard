@@ -109,8 +109,10 @@ export function PenaltyDuel({
     useGameRoom(matchId, initialMatch, currentUserId);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  // The shot direction the keeper just saw the ball fly (for animation).
+  // The resolved kick's shot direction (ball) + keeper's dive — for animation.
+  // Both reset to null after the verdict fades so the next kick animates fresh.
   const [lastShot, setLastShot] = useState<Dir | null>(null);
+  const [lastDive, setLastDive] = useState<Dir | null>(null);
   // Transient GOAL!/SAVED! verdict shown after each kick resolves.
   const [verdict, setVerdict] = useState<{ goal: boolean; key: number } | null>(null);
 
@@ -149,9 +151,17 @@ export function PenaltyDuel({
     if (kickCount === 0) return;
     const last = state.kicks[kickCount - 1];
     setLastShot(last.dir);
+    setLastDive(last.dive);
     setVerdict({ goal: last.goal, key: kickCount });
     haptic(last.goal ? 30 : 15);
-    const t = setTimeout(() => setVerdict(null), 1600);
+    // After the verdict fades, reset the pitch to neutral so the NEXT kick
+    // animates fresh — otherwise the ball/keeper linger on the previous kick's
+    // position (the "shows previous shootout" bug).
+    const t = setTimeout(() => {
+      setVerdict(null);
+      setLastShot(null);
+      setLastDive(null);
+    }, 1600);
     return () => clearTimeout(t);
     // Only when a NEW kick lands.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -340,7 +350,7 @@ export function PenaltyDuel({
       {/* Goal + pitch */}
       <Card className="border-border/60 bg-card/70">
         <CardContent className="p-4">
-          <Goal lastShot={lastShot} verdict={verdict} />
+          <Goal lastShot={lastShot} lastDive={lastDive} verdict={verdict} />
         </CardContent>
       </Card>
 
@@ -396,12 +406,15 @@ export function PenaltyDuel({
  */
 function Goal({
   lastShot,
+  lastDive,
   verdict,
 }: {
   lastShot: Dir | null;
+  lastDive: Dir | null;
   verdict: { goal: boolean; key: number } | null;
 }) {
   const x = lastShot === "L" ? -90 : lastShot === "R" ? 90 : 0;
+  const diveX = lastDive === "L" ? -90 : lastDive === "R" ? 90 : 0;
   return (
     <div className="relative mx-auto h-40 w-full max-w-sm overflow-hidden">
       {/* Net */}
@@ -409,13 +422,13 @@ function Goal({
       {/* Grass */}
       <div className="absolute inset-x-0 bottom-0 h-10 rounded-md bg-success/20" />
 
-      {/* Keeper — dives to where the ball went once a kick has resolved. */}
+      {/* Keeper — dives to where they chose once a kick has resolved. */}
       <motion.div
         key={`keeper-${verdict?.key ?? "idle"}`}
         initial={{ x: 0, y: 0, rotate: 0 }}
         animate={
           verdict
-            ? { x: x * 0.6, y: -6, rotate: lastShot === "M" ? 0 : x < 0 ? -35 : 35 }
+            ? { x: diveX * 0.6, y: -6, rotate: lastDive === "M" ? 0 : diveX < 0 ? -35 : 35 }
             : { x: 0, y: 0, rotate: 0 }
         }
         transition={{ type: "spring", stiffness: 200, damping: 16 }}
