@@ -28,6 +28,8 @@ export interface SponsorRow {
 export interface SponsorResult {
   ok: boolean;
   error?: string;
+  /** The newly-created row, on a successful upload. */
+  row?: SponsorRow;
 }
 
 /** All sponsor images, newest first. */
@@ -83,11 +85,14 @@ export async function uploadSponsor(formData: FormData): Promise<SponsorResult> 
     data: { publicUrl },
   } = supabase.storage.from(BUCKET).getPublicUrl(path);
 
-  await db.insert(sponsors).values({ imageUrl: publicUrl, uploadedBy: profile.id });
+  const [inserted] = await db
+    .insert(sponsors)
+    .values({ imageUrl: publicUrl, uploadedBy: profile.id })
+    .returning({ id: sponsors.id, imageUrl: sponsors.imageUrl });
 
   revalidatePath("/dashboard");
   revalidatePath("/", "layout");
-  return { ok: true };
+  return { ok: true, row: inserted };
 }
 
 /** Remove a sponsor image (any member can remove any). Also deletes the file. */

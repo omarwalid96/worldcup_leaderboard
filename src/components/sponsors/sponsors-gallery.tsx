@@ -44,11 +44,10 @@ export function SponsorsGallery({ initial }: { initial: SponsorRow[] }) {
     fd.append("file", file);
     startTransition(async () => {
       const res = await uploadSponsor(fd);
-      if (res.ok) {
-        // Refetch is simplest; but optimistic insert keeps it snappy. The
-        // server revalidates, so a navigation will reconcile. Reload list:
-        const { listSponsors } = await import("@/lib/sponsors/actions");
-        setItems(await listSponsors());
+      if (res.ok && res.row) {
+        // Append the returned row directly — no client-side refetch/dynamic
+        // import (that used to crash the page in production).
+        setItems((prev) => [res.row!, ...prev]);
         toast.success("Sponsor added.");
       } else {
         toast.error(res.error ?? "Upload failed.");
