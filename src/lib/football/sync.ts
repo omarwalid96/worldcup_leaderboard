@@ -103,12 +103,21 @@ export async function lockKickedOffPredictions(): Promise<number> {
  * (handled in syncMatches).
  */
 export async function markInPlayLive(): Promise<number> {
+  // A scheduled match whose kickoff has passed is in play — mark it LIVE so the
+  // UI shows a LIVE state during the ~2h window before the final lands. It
+  // leaves 'live' once the feed reports 'finished' (handled in syncMatches).
+  //
+  // NOTE: we deliberately do NOT gate on `home_score is null` — fixtures can
+  // carry a stray 0-0 from the data source before kickoff, which used to leave
+  // matches stuck on 'scheduled' forever. The upper bound (kickoff within the
+  // last ~4h) avoids resurrecting long-finished matches the feed never
+  // finalized; those stay scheduled rather than flapping to live.
   const res = await db.execute(sql`
     update matches
     set status = 'live', last_synced_at = now()
     where status = 'scheduled'
       and kickoff_utc <= now()
-      and home_score is null
+      and kickoff_utc > now() - interval '4 hours'
   `);
   return (res as unknown as { count?: number }).count ?? 0;
 }
