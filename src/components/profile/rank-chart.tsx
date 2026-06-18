@@ -24,7 +24,7 @@ export function RankChart({ data }: Props) {
   }
 
   const chartData = data.map((d) => ({
-    label: `MD${d.matchday}`,
+    label: d.label,
     rank: d.rank,
   }));
 
@@ -32,8 +32,11 @@ export function RankChart({ data }: Props) {
   const maxRank = Math.max(...data.map((d) => d.rank));
   const domainMax = maxRank + 1;
 
+  const minWidth = Math.max(chartData.length * 52, 240);
+
   return (
-    <div className="h-44 w-full">
+    <div className="h-44 w-full overflow-x-auto">
+      <div className="h-full" style={{ minWidth }}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
           <XAxis
@@ -75,6 +78,7 @@ export function RankChart({ data }: Props) {
           />
         </LineChart>
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }

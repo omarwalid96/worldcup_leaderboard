@@ -176,7 +176,7 @@ export default async function ProfilePage() {
       <Card className="border-border/60 bg-card/70">
         <CardHeader className="flex-row items-center gap-2 space-y-0">
           <BarChart2 className="size-4 text-primary" />
-          <CardTitle className="text-base">Participation by matchday</CardTitle>
+          <CardTitle className="text-base">Participation by day</CardTitle>
         </CardHeader>
         <CardContent>
           <ParticipationChart data={participationHistory} />

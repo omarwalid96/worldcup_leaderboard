@@ -24,13 +24,18 @@ export function ParticipationChart({ data }: Props) {
   }
 
   const chartData = data.map((d) => ({
-    label: `MD${d.matchday}`,
+    label: d.label,
     predicted: d.predicted,
     missed: d.missed,
   }));
 
+  // Each day needs ~52px of width; if there are many days, let the chart grow
+  // past the container width and scroll horizontally instead of cramming.
+  const minWidth = Math.max(chartData.length * 52, 240);
+
   return (
-    <div className="h-44 w-full">
+    <div className="h-44 w-full overflow-x-auto">
+      <div className="h-full" style={{ minWidth }}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={chartData}
@@ -82,6 +87,7 @@ export function ParticipationChart({ data }: Props) {
           />
         </BarChart>
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }

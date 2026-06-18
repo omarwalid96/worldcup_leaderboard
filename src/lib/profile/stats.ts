@@ -8,8 +8,6 @@ import {
   profiles,
   userBadges,
   badges,
-  pointsHistory,
-  rankHistory,
   matches,
 } from "@/db/schema";
 import { RELEASE_DATE_UTC } from "@/lib/time/usday";
@@ -143,20 +141,63 @@ export async function getUserBadges(userId: string): Promise<EarnedBadge[]> {
 }
 
 export interface PointsPoint {
-  matchday: number;
+  /** Sortable day key, e.g. "2026-06-17". */
+  day: string;
+  /** Short display label, e.g. "17 Jun". */
+  label: string;
   cumulativePoints: number;
 }
 
-/** Points-over-time series for the profile chart. */
+/**
+ * Points-over-time series for the profile chart, computed live from graded
+ * predictions grouped by the match's CALENDAR day (not the round "matchday",
+ * which is the same for all group games). Starts from the user's baseline so
+ * the line ends at their real standings total.
+ */
 export async function getPointsHistory(userId: string): Promise<PointsPoint[]> {
-  return db
+  const [defaultLeague] = await db
+    .select({ id: leagues.id })
+    .from(leagues)
+    .where(eq(leagues.isDefault, true))
+    .limit(1);
+
+  // Baseline offset so the series ends at the user's true total points.
+  let baseline = 0;
+  if (defaultLeague) {
+    const [s] = await db
+      .select({ baseline: standings.baselinePoints })
+      .from(standings)
+      .where(and(eq(standings.leagueId, defaultLeague.id), eq(standings.userId, userId)))
+      .limit(1);
+    baseline = s?.baseline ?? 0;
+  }
+
+  const rows = await db
     .select({
-      matchday: pointsHistory.matchday,
-      cumulativePoints: pointsHistory.cumulativePoints,
+      day: sql<string>`to_char((${matches.kickoffUtc} at time zone 'UTC')::date, 'YYYY-MM-DD')`,
+      label: sql<string>`to_char((${matches.kickoffUtc} at time zone 'UTC')::date, 'DD Mon')`,
+      dayPoints: sql<number>`coalesce(sum(${predictions.pointsAwarded}), 0)::int`,
     })
-    .from(pointsHistory)
-    .where(and(eq(pointsHistory.userId, userId), isNotNull(pointsHistory.cumulativePoints)))
-    .orderBy(pointsHistory.matchday);
+    .from(predictions)
+    .innerJoin(matches, eq(matches.id, predictions.matchId))
+    .where(and(eq(predictions.userId, userId), isNotNull(predictions.pointsAwarded)))
+    .groupBy(
+      sql`(${matches.kickoffUtc} at time zone 'UTC')::date`,
+    )
+    .orderBy(sql`(${matches.kickoffUtc} at time zone 'UTC')::date`);
+
+  let running = baseline;
+  const series: PointsPoint[] = rows.map((r) => {
+    running += r.dayPoints;
+    return { day: r.day, label: r.label, cumulativePoints: running };
+  });
+
+  // Seed a baseline starting point so the very first graded day shows a rise
+  // from the starting score rather than a lone dot.
+  if (series.length > 0 && baseline > 0) {
+    series.unshift({ day: "start", label: "Start", cumulativePoints: baseline });
+  }
+  return series;
 }
 
 export interface OutcomeBreakdown {
@@ -198,13 +239,16 @@ export async function getOutcomeBreakdown(userId: string): Promise<OutcomeBreakd
 }
 
 export interface RankPoint {
-  matchday: number;
+  day: string;
+  label: string;
   rank: number;
 }
 
 /**
- * Rank-over-time series for the rank chart (default league only).
- * Lower rank number = better position; the chart Y axis should be inverted.
+ * Rank-over-time series, computed live: for each calendar day on which any
+ * match was graded, compute every league member's cumulative total up to and
+ * including that day (baseline + graded), rank them (dense), and return this
+ * user's rank per day. Lower rank = better; the chart Y axis is inverted.
  */
 export async function getRankHistory(userId: string): Promise<RankPoint[]> {
   const [defaultLeague] = await db
@@ -215,35 +259,90 @@ export async function getRankHistory(userId: string): Promise<RankPoint[]> {
 
   if (!defaultLeague) return [];
 
+  // Per (user, day): points scored that day. Plus each member's baseline.
   const rows = await db
     .select({
-      matchday: rankHistory.matchday,
-      rank: rankHistory.rank,
+      userId: predictions.userId,
+      day: sql<string>`to_char((${matches.kickoffUtc} at time zone 'UTC')::date, 'YYYY-MM-DD')`,
+      label: sql<string>`to_char((${matches.kickoffUtc} at time zone 'UTC')::date, 'DD Mon')`,
+      dayPoints: sql<number>`coalesce(sum(${predictions.pointsAwarded}), 0)::int`,
     })
-    .from(rankHistory)
-    .where(
-      and(eq(rankHistory.userId, userId), eq(rankHistory.leagueId, defaultLeague.id)),
-    )
-    .orderBy(rankHistory.matchday);
+    .from(predictions)
+    .innerJoin(matches, eq(matches.id, predictions.matchId))
+    .where(isNotNull(predictions.pointsAwarded))
+    .groupBy(
+      predictions.userId,
+      sql`(${matches.kickoffUtc} at time zone 'UTC')::date`,
+    );
 
-  return rows;
+  if (rows.length === 0) return [];
+
+  const baselines = await db
+    .select({ userId: standings.userId, baseline: standings.baselinePoints })
+    .from(standings)
+    .where(eq(standings.leagueId, defaultLeague.id));
+  const baselineByUser = new Map(baselines.map((b) => [b.userId, b.baseline]));
+
+  // All distinct days, ascending.
+  const days = [...new Set(rows.map((r) => r.day))].sort();
+  const labelByDay = new Map(rows.map((r) => [r.day, r.label]));
+
+  // Per-user per-day points lookup.
+  const pointsByUserDay = new Map<string, number>(); // `${user}|${day}` -> pts
+  const userIds = new Set<string>();
+  for (const r of rows) {
+    pointsByUserDay.set(`${r.userId}|${r.day}`, r.dayPoints);
+    userIds.add(r.userId);
+  }
+  // Include all members with a baseline even if they never scored.
+  for (const b of baselines) userIds.add(b.userId);
+
+  // Walk days, accumulating each user's running total, ranking per day.
+  const cumulative = new Map<string, number>();
+  for (const u of userIds) cumulative.set(u, baselineByUser.get(u) ?? 0);
+
+  const series: RankPoint[] = [];
+  for (const day of days) {
+    for (const u of userIds) {
+      const add = pointsByUserDay.get(`${u}|${day}`) ?? 0;
+      cumulative.set(u, (cumulative.get(u) ?? 0) + add);
+    }
+    // Dense rank: this user's rank = 1 + (number of users strictly above).
+    const myTotal = cumulative.get(userId) ?? 0;
+    const distinctAbove = new Set<number>();
+    for (const u of userIds) {
+      const t = cumulative.get(u) ?? 0;
+      if (t > myTotal) distinctAbove.add(t);
+    }
+    series.push({
+      day,
+      label: labelByDay.get(day) ?? day,
+      rank: distinctAbove.size + 1,
+    });
+  }
+
+  return series;
 }
 
 export interface ParticipationPoint {
-  matchday: number;
+  day: string;
+  label: string;
   predicted: number;
   missed: number;
 }
 
 /**
- * Per-matchday participation: how many locked matches did the user predict vs miss.
+ * Per CALENDAR-DAY participation: of the matches that locked on each day since
+ * the user joined, how many did they predict vs miss. (Grouped by match date,
+ * not the round "matchday", so each day a match was played is its own bar.)
  */
 export async function getParticipationHistory(userId: string): Promise<ParticipationPoint[]> {
   const now = new Date();
   const since = await participationSince(userId);
   const rows = await db
     .select({
-      matchday: matches.matchday,
+      day: sql<string>`to_char((${matches.kickoffUtc} at time zone 'UTC')::date, 'YYYY-MM-DD')`,
+      label: sql<string>`to_char((${matches.kickoffUtc} at time zone 'UTC')::date, 'DD Mon')`,
       total: sql<number>`count(*)::int`,
       predicted: sql<number>`count(${predictions.id})::int`,
     })
@@ -253,11 +352,12 @@ export async function getParticipationHistory(userId: string): Promise<Participa
       and(eq(predictions.matchId, matches.id), eq(predictions.userId, userId)),
     )
     .where(and(lt(matches.kickoffUtc, now), gte(matches.kickoffUtc, since)))
-    .groupBy(matches.matchday)
-    .orderBy(matches.matchday);
+    .groupBy(sql`(${matches.kickoffUtc} at time zone 'UTC')::date`)
+    .orderBy(sql`(${matches.kickoffUtc} at time zone 'UTC')::date`);
 
   return rows.map((r) => ({
-    matchday: r.matchday,
+    day: r.day,
+    label: r.label,
     predicted: r.predicted,
     missed: r.total - r.predicted,
   }));

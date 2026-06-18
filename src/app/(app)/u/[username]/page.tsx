@@ -11,9 +11,11 @@ import {
   TrendingUp,
   PieChart,
   BarChart2,
+  Award,
 } from "lucide-react";
 import { ZoomableAvatar } from "@/components/avatar/zoomable-avatar";
 import { BusinessCard } from "@/components/profile/business-card";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PredictionHistory } from "@/components/profile/prediction-history";
 import { PointsChart } from "@/components/profile/points-chart";
@@ -27,6 +29,7 @@ import {
   getOutcomeBreakdown,
   getRankHistory,
   getParticipationHistory,
+  getUserBadges,
 } from "@/lib/profile/stats";
 import { getSessionProfile } from "@/lib/auth/session";
 
@@ -60,6 +63,7 @@ export default async function UserProfilePage({
     outcomeBreakdown,
     rankHistoryData,
     participationHistory,
+    earnedBadges,
   ] = await Promise.all([
     getProfileStats(profile.id),
     getUserPredictionHistory(profile.id),
@@ -67,6 +71,7 @@ export default async function UserProfilePage({
     getOutcomeBreakdown(profile.id),
     getRankHistory(profile.id),
     getParticipationHistory(profile.id),
+    getUserBadges(profile.id),
   ]);
 
   const initials = profile.displayName
@@ -198,10 +203,32 @@ export default async function UserProfilePage({
       <Card className="border-border/60 bg-card/70">
         <CardHeader className="flex-row items-center gap-2 space-y-0">
           <BarChart2 className="size-4 text-primary" />
-          <CardTitle className="text-base">Participation by matchday</CardTitle>
+          <CardTitle className="text-base">Participation by day</CardTitle>
         </CardHeader>
         <CardContent>
           <ParticipationChart data={participationHistory} />
+        </CardContent>
+      </Card>
+
+      {/* Badges — visible on everyone's profile */}
+      <Card className="border-border/60 bg-card/70">
+        <CardHeader className="flex-row items-center gap-2 space-y-0">
+          <Award className="size-4 text-gold" />
+          <CardTitle className="text-base">Badges</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {earnedBadges.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No badges yet.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {earnedBadges.map((b) => (
+                <Badge key={b.id} variant="secondary" className="gap-1.5 py-1.5">
+                  <span aria-hidden>{b.icon}</span>
+                  {b.name}
+                </Badge>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -21,18 +21,21 @@ export function PointsChart({ data }: { data: PointsPoint[] }) {
   }
 
   const points = data.map((d) => ({
-    label: `MD${d.matchday}`,
+    label: d.label,
     points: d.cumulativePoints,
   }));
 
-  // A single matchday can't draw an area (a line needs two points), so it would
+  // A single point can't draw an area (a line needs two points), so it would
   // render as a lone floating dot. Prepend a "Start" baseline at 0 so the very
-  // first matchday shows a proper rising area instead of a dot in space.
+  // first day shows a proper rising area instead of a dot in space.
   const chartData =
     points.length === 1 ? [{ label: "Start", points: 0 }, ...points] : points;
 
+  const minWidth = Math.max(chartData.length * 52, 240);
+
   return (
-    <div className="h-44 w-full">
+    <div className="h-44 w-full overflow-x-auto">
+      <div className="h-full" style={{ minWidth }}>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
           <defs>
@@ -78,6 +81,7 @@ export function PointsChart({ data }: { data: PointsPoint[] }) {
           />
         </AreaChart>
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }
