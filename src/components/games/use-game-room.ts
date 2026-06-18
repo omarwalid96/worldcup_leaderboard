@@ -101,7 +101,18 @@ export function useGameRoom(
         }
       });
 
+    // Polling fallback: re-fetch the row every 3s while the tab is visible.
+    // Realtime (broadcast/postgres_changes) is the fast path, but it can drop
+    // events (RLS-gated postgres_changes, a missed broadcast if a client wasn't
+    // subscribed yet — e.g. the challenge-accept transition). A short poll makes
+    // the room bulletproof. It hits OUR DB only (a Server Action), never the
+    // football API, and games are short-lived, so the load is trivial.
+    const poll = setInterval(() => {
+      if (document.visibilityState === "visible") resync();
+    }, 3000);
+
     return () => {
+      clearInterval(poll);
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
