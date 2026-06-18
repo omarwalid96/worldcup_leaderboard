@@ -14,8 +14,13 @@ export default async function AppLayout({
 
   return (
     <div className="bg-pitch min-h-dvh">
-      {/* Top bar */}
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-lg">
+      {/* Top bar. pt = env(safe-area-inset-top) so the bar clears the iOS
+          status bar / notch in standalone PWA mode (black-translucent draws
+          content edge-to-edge under the clock). Android reports 0 → no change. */}
+      <header
+        className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-lg"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
           <Link href="/dashboard">
             <Brand />
