@@ -48,6 +48,8 @@ export const profiles = pgTable("profiles", {
   // Optional business-card image. Editable only directly in the DB (no app UI);
   // shown as a small tappable thumbnail on the profile when set, else hidden.
   businessCardUrl: text("business_card_url"),
+  // Short personal tagline (max 120 chars). Shown on the home leader spotlight.
+  quote: text("quote"),
   timezone: text("timezone").notNull().default("UTC"),
   // Web Push subscription (PushSubscription JSON) — null until the user opts in.
   pushSubscription: jsonb("push_subscription"),

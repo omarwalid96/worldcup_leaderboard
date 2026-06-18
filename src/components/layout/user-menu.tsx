@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LogOut, User as UserIcon, Settings } from "lucide-react";
+import { Award, LogOut, User as UserIcon, Settings } from "lucide-react";
 import { logoutAction } from "@/lib/auth/actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -56,6 +56,11 @@ export function UserMenu({
         <DropdownMenuItem asChild>
           <Link href="/settings">
             <Settings className="size-4" /> Settings
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/badges">
+            <Award className="size-4" /> Badges
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

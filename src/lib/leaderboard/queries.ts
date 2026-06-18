@@ -8,6 +8,7 @@ export interface LeaderboardRow {
   username: string;
   displayName: string;
   avatarUrl: string | null;
+  quote: string | null;
   totalPoints: number;
   rank: number;
   previousRank: number;
@@ -49,6 +50,7 @@ export async function getLeaderboard(
       username: profiles.username,
       displayName: profiles.displayName,
       avatarUrl: profiles.avatarUrl,
+      quote: profiles.quote,
       totalPoints: standings.totalPoints,
       rank: standings.rank,
       previousRank: standings.previousRank,

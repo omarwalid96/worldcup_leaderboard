@@ -3,6 +3,7 @@ import { requireProfile } from "@/lib/auth/session";
 import { PushSettings } from "@/components/notifications/push-settings";
 import { AvatarUpload } from "@/components/avatar/avatar-upload";
 import { NameSettings } from "@/components/profile/name-settings";
+import { QuoteSettings } from "@/components/profile/quote-settings";
 import { env } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -44,6 +45,8 @@ export default async function SettingsPage() {
         currentName={profile.displayName}
         username={profile.username}
       />
+
+      <QuoteSettings currentQuote={profile.quote ?? null} />
 
       <AvatarUpload
         currentUrl={profile.avatarUrl}

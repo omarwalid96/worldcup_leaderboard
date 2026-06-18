@@ -18,6 +18,47 @@ function initials(name: string) {
 
 const GOLD = ["#F2D27A", "#E2B64B", "#C8A24B", "#FFFFFF"];
 
+/** Three middle-finger emoji at varied angles, for one corner of the spotlight. */
+function CornerFingers({
+  position,
+}: {
+  position: "top-left" | "top-right" | "bottom-left" | "bottom-right";
+}) {
+  const posClass = {
+    "top-left": "top-1 left-1",
+    "top-right": "top-1 right-1",
+    "bottom-left": "bottom-1 left-1",
+    "bottom-right": "bottom-1 right-1",
+  }[position];
+
+  // Three emoji with slightly different rotations per corner
+  const rotations: Record<typeof position, [number, number, number]> = {
+    "top-left": [-20, 5, 25],
+    "top-right": [20, -5, -25],
+    "bottom-left": [-15, 10, 30],
+    "bottom-right": [15, -10, -30],
+  };
+
+  const angles = rotations[position];
+
+  return (
+    <div
+      className={`pointer-events-none absolute ${posClass} z-0 flex gap-0.5`}
+      aria-hidden
+    >
+      {angles.map((deg, i) => (
+        <span
+          key={i}
+          className="text-[10px] opacity-20"
+          style={{ transform: `rotate(${deg}deg)`, display: "inline-block" }}
+        >
+          🖕
+        </span>
+      ))}
+    </div>
+  );
+}
+
 /**
  * Home-page spotlight for the current Main League leader(s) — crowned avatar(s).
  * Compact for mobile. Fires a small gold confetti burst from each side of the
@@ -52,6 +93,12 @@ export function LeagueLeaders({ data }: { data: LeagueLeaders }) {
       ref={boxRef}
       className="relative overflow-hidden rounded-2xl border border-gold/30 bg-card/70 px-4 py-3"
     >
+      {/* Decorative middle-finger corner clusters */}
+      <CornerFingers position="top-left" />
+      <CornerFingers position="top-right" />
+      <CornerFingers position="bottom-left" />
+      <CornerFingers position="bottom-right" />
+
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_90%_at_50%_0%,oklch(0.796_0.133_86.3/0.12),transparent)]" />
       <div className="relative flex flex-col items-center gap-2 text-center">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-gold">
@@ -85,6 +132,11 @@ export function LeagueLeaders({ data }: { data: LeagueLeaders }) {
               >
                 {l.displayName}
               </Link>
+              {l.quote && (
+                <p className="max-w-[8rem] text-center text-[10px] italic leading-tight text-muted-foreground">
+                  &ldquo;{l.quote}&rdquo;
+                </p>
+              )}
             </div>
           ))}
         </div>
