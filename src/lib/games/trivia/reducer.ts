@@ -1,7 +1,6 @@
 import type {
   GameReducer,
   PlayerSlot,
-  ReduceContext,
   ReduceResult,
 } from "../types";
 import { TRIVIA_QUESTIONS } from "./questions";

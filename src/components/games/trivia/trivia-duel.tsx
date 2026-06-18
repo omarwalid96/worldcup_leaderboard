@@ -2,12 +2,12 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Loader2, Radio, Trophy, Check, X, Clock } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { celebrateSave, haptic, celebrateExact } from "@/lib/celebrate";
+import { haptic, celebrateExact } from "@/lib/celebrate";
 import { useGameRoom } from "@/components/games/use-game-room";
 import { applyMove } from "@/lib/games/actions";
 import type { GameComponentProps, PlayerInfo } from "@/lib/games/types";
@@ -122,7 +122,7 @@ export function TriviaDuel({
         <Loader2 className="size-8 animate-spin text-gold" />
         <h2 className="text-xl font-semibold">Waiting for {opp?.displayName || "opponent"}</h2>
         <p className="text-sm text-muted-foreground">
-          You've answered all questions. Waiting for them to finish so we can tally the score!
+          You&apos;ve answered all questions. Waiting for them to finish so we can tally the score!
         </p>
         <div className="mt-4 flex w-full max-w-xs items-center justify-between text-xs">
           <span>You: {myAnswers.length}/{QUESTIONS_PER_MATCH}</span>

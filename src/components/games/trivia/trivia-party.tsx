@@ -272,7 +272,7 @@ export function TriviaParty() {
           Round {currentQ + 1} of {questionCount}
         </span>
         <span className="text-xs font-medium bg-gold/20 text-gold px-2 py-0.5 rounded">
-          {activePlayer}'s Turn
+          {activePlayer}&apos;s Turn
         </span>
       </div>
 
