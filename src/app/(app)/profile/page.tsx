@@ -13,6 +13,7 @@ import {
   BarChart2,
 } from "lucide-react";
 import { ZoomableAvatar } from "@/components/avatar/zoomable-avatar";
+import { BusinessCard } from "@/components/profile/business-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RankTrend } from "@/components/profile/rank-trend";
@@ -115,6 +116,11 @@ export default async function ProfilePage() {
           <p className="text-sm text-muted-foreground">@{profile.username}</p>
         </div>
       </div>
+
+      {/* Business card — only if one is set in the DB for this user. */}
+      {profile.businessCardUrl && (
+        <BusinessCard url={profile.businessCardUrl} name={profile.displayName} />
+      )}
 
       {/* Stat grid */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
