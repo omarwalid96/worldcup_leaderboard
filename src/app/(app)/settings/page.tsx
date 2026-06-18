@@ -12,16 +12,23 @@ interface NotifPrefs {
   lockReminder: boolean;
   scoreHit: boolean;
   rankClimb: boolean;
+  gameChallenge: boolean;
 }
 
 function parseNotifPrefs(raw: unknown): NotifPrefs {
-  const defaults: NotifPrefs = { lockReminder: true, scoreHit: true, rankClimb: true };
+  const defaults: NotifPrefs = {
+    lockReminder: true,
+    scoreHit: true,
+    rankClimb: true,
+    gameChallenge: true,
+  };
   if (!raw || typeof raw !== "object") return defaults;
   const r = raw as Record<string, unknown>;
   return {
     lockReminder: r.lockReminder !== false,
     scoreHit: r.scoreHit !== false,
     rankClimb: r.rankClimb !== false,
+    gameChallenge: r.gameChallenge !== false,
   };
 }
 

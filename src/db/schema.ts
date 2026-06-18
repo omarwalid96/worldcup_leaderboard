@@ -55,7 +55,7 @@ export const profiles = pgTable("profiles", {
   pushSubscription: jsonb("push_subscription"),
   notifPrefs: jsonb("notif_prefs")
     .notNull()
-    .default({ lockReminder: true, scoreHit: true, rankClimb: true }),
+    .default({ lockReminder: true, scoreHit: true, rankClimb: true, gameChallenge: true }),
   isAdmin: boolean("is_admin").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -257,6 +257,60 @@ export const pointsHistory = pgTable(
   ],
 );
 
+// ── Games (separate world from the prediction league) ───────────────────────
+// game_type is a free-form string (not an enum) so adding a new game needs no
+// migration. RLS lives in drizzle/0010_games.sql, never here.
+
+/** A single game match between two members. `state` holds the per-game blob. */
+export const gameMatches = pgTable(
+  "game_matches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    gameType: text("game_type").notNull(), // 'penalty_duel' | 'trivia_duel' | …
+    status: text("status").notNull().default("pending"), // pending | active | finished | declined | expired
+    player1Id: uuid("player1_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }), // challenger
+    player2Id: uuid("player2_id").references(() => profiles.id, {
+      onDelete: "cascade",
+    }), // challenged (null = open challenge)
+    turn: uuid("turn").references(() => profiles.id), // whose turn (null for simultaneous)
+    state: jsonb("state").notNull().default({}), // per-game blob
+    winnerId: uuid("winner_id").references(() => profiles.id), // null until finished; null+finished = draw
+    score: jsonb("score"), // optional {p1,p2} for display
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("game_matches_player1_idx").on(t.player1Id),
+    index("game_matches_player2_idx").on(t.player2Id),
+    index("game_matches_status_idx").on(t.status),
+    index("game_matches_game_type_idx").on(t.gameType),
+  ],
+);
+
+/** Aggregate W/L/D per user per game_type (profile card + future badges). */
+export const gameResults = pgTable(
+  "game_results",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    gameType: text("game_type").notNull(),
+    wins: integer("wins").notNull().default(0),
+    losses: integer("losses").notNull().default(0),
+    draws: integer("draws").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.gameType] })],
+);
+
 // ── Relations ──────────────────────────────────────────────────────────────
 export const profilesRelations = relations(profiles, ({ many }) => ({
   predictions: many(predictions),
@@ -307,3 +361,5 @@ export type Prediction = typeof predictions.$inferSelect;
 export type Standing = typeof standings.$inferSelect;
 export type Badge = typeof badges.$inferSelect;
 export type RankHistory = typeof rankHistory.$inferSelect;
+export type GameMatchRow = typeof gameMatches.$inferSelect;
+export type GameResultRow = typeof gameResults.$inferSelect;

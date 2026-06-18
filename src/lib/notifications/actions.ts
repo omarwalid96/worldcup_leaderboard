@@ -9,6 +9,7 @@ export interface NotifPrefs {
   lockReminder: boolean;
   scoreHit: boolean;
   rankClimb: boolean;
+  gameChallenge: boolean;
 }
 
 /**

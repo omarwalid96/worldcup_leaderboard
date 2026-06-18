@@ -24,6 +24,7 @@ interface NotifPrefs {
   lockReminder?: boolean;
   scoreHit?: boolean;
   rankClimb?: boolean;
+  gameChallenge?: boolean;
 }
 
 let vapidConfigured = false;
