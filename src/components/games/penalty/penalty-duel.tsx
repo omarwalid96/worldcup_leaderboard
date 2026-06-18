@@ -437,12 +437,19 @@ function Goal({
         🧤
       </motion.div>
 
-      {/* Ball */}
+      {/* Ball — on a GOAL it sails into the net; on a SAVE it's stopped short at
+          the keeper (a little kick-back), so the verdict reads visually. */}
       <AnimatePresence mode="wait">
         <motion.div
           key={`${lastShot}-${verdict?.key ?? 0}`}
           initial={{ y: 60, x: 0, scale: 1, opacity: 0 }}
-          animate={{ y: lastShot ? -10 : 60, x, scale: lastShot ? 0.7 : 1, opacity: 1 }}
+          animate={{
+            // Goal flies up into the net; save is caught lower (less travel).
+            y: lastShot ? (verdict?.goal ? -28 : 6) : 60,
+            x: verdict && !verdict.goal ? diveX * 0.6 : x,
+            scale: lastShot ? (verdict?.goal ? 0.65 : 0.8) : 1,
+            opacity: 1,
+          }}
           transition={{ type: "spring", stiffness: 220, damping: 18 }}
           className="absolute bottom-2 left-1/2 -ml-3 text-2xl"
         >
