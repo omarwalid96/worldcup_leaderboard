@@ -6,8 +6,7 @@
 app = 'haxball-eznii'
 primary_region = 'cdg'
 
-[build]
-  dockerfile = 'server/haxball/Dockerfile'
+# build context + dockerfile passed on the CLI from repo root (needs ../../src physics)
 
 [http_service]
   internal_port = 8080

@@ -69,7 +69,7 @@ function startLoop(id: string, room: Room) {
   }, TICK_MS);
 }
 
-const wss = new WebSocketServer({ port: PORT });
+const wss = new WebSocketServer({ host: "0.0.0.0", port: PORT });
 console.log(`haxball server on :${PORT}`);
 
 wss.on("connection", (ws) => {
@@ -81,7 +81,9 @@ wss.on("connection", (ws) => {
     try { m = JSON.parse(buf.toString()); } catch { return; }
 
     if (m.t === "join" && m.matchId && m.userId) {
-      const p = await players(m.matchId);
+      let p;
+      try { p = await players(m.matchId); }
+      catch { return ws.close(1011, "lookup failed"); } // never leave the socket hanging
       if (!p) return ws.close(1008, "no match");
       const slot = m.userId === p.p1 ? "p0" : m.userId === p.p2 ? "p1" : null;
       if (!slot) return ws.close(1008, "not a player"); // light auth: must be one of the two
