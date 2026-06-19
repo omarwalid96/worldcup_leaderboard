@@ -14,6 +14,8 @@ import {
 import { PenaltyDuel } from "@/components/games/penalty/penalty-duel";
 import { triviaReducer, createInitialTriviaState } from "./trivia/reducer";
 import { TriviaDuel } from "@/components/games/trivia/trivia-duel";
+import { haxballReducer, createInitialHaxState } from "./haxball/reducer";
+import { HaxballDuel } from "@/components/games/haxball/haxball-duel";
 
 export const GAME_REGISTRY: Record<GameType, GameDefinition> = {
   penalty_duel: {
@@ -37,6 +39,17 @@ export const GAME_REGISTRY: Record<GameType, GameDefinition> = {
     reducer: triviaReducer as GameDefinition["reducer"],
     createInitialState: () => createInitialTriviaState(),
     component: TriviaDuel,
+  },
+  haxball_duel: {
+    type: "haxball_duel",
+    title: "HaxBall",
+    emoji: "🥅",
+    blurb: "Real-time 1v1. Move, kick, score. First to 3.",
+    mode: "simultaneous",
+    minPlayers: 2,
+    reducer: haxballReducer as GameDefinition["reducer"],
+    createInitialState: () => createInitialHaxState(),
+    component: HaxballDuel,
   },
 };
 

@@ -7,7 +7,7 @@
  */
 import type { ComponentType } from "react";
 
-export type GameType = "penalty_duel" | "trivia_duel";
+export type GameType = "penalty_duel" | "trivia_duel" | "haxball_duel";
 
 export type GameStatus =
   | "pending"
