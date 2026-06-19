@@ -40,30 +40,30 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Link
           href="/matches"
-          className="group flex items-center gap-3 rounded-xl border border-border/60 bg-card/70 px-3 py-2.5 transition-colors hover:border-primary/40"
+          className="group flex items-center gap-3.5 rounded-xl border border-border/60 bg-card/70 px-4 py-3.5 transition-colors hover:border-primary/40"
         >
-          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/15 text-primary">
-            <Target className="size-4" />
+          <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/15 text-primary">
+            <Target className="size-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold leading-tight">ازني يا دولي</p>
-            <p className="truncate text-xs text-muted-foreground">Predict before kickoff</p>
+            <p className="text-base font-semibold leading-tight">ازني يا دولي</p>
+            <p className="truncate text-sm text-muted-foreground">Predict before kickoff</p>
           </div>
-          <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+          <ArrowRight className="size-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
         </Link>
 
         <Link
           href="/leaderboard"
-          className="group flex items-center gap-3 rounded-xl border border-border/60 bg-card/70 px-3 py-2.5 transition-colors hover:border-gold/40"
+          className="group flex items-center gap-3.5 rounded-xl border border-border/60 bg-card/70 px-4 py-3.5 transition-colors hover:border-gold/40"
         >
-          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-gold/15 text-gold">
-            <Trophy className="size-4" />
+          <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-gold/15 text-gold">
+            <Trophy className="size-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold leading-tight">The table</p>
-            <p className="truncate text-xs text-muted-foreground">See where you stand</p>
+            <p className="text-base font-semibold leading-tight">The table</p>
+            <p className="truncate text-sm text-muted-foreground">See where you stand</p>
           </div>
-          <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+          <ArrowRight className="size-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
         </Link>
       </div>
 

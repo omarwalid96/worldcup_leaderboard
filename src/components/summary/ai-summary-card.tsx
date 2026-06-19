@@ -1,8 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Maximize2, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import type { AiSummary } from "@/lib/summary/queries";
 
 function timeAgo(iso: string): string {
@@ -43,10 +50,34 @@ export function AiSummaryCard({ summary }: { summary: AiSummary | null }) {
           <span className="text-[11px] text-muted-foreground/70">updated {ago}</span>
         )}
       </CardHeader>
-      <CardContent>
-        <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
+      <CardContent className="space-y-2">
+        <p className="line-clamp-5 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
           {summary.body}
         </p>
+        <Dialog>
+          <DialogTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-gold transition-colors hover:text-gold/80"
+            >
+              <Maximize2 className="size-3.5" />
+              Read full recap
+            </button>
+          </DialogTrigger>
+          <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="inline-flex items-center gap-2">
+                <Sparkles className="size-4 text-gold" /> AI Summary
+              </DialogTitle>
+            </DialogHeader>
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
+              {summary.body}
+            </p>
+            {ago && (
+              <p className="text-[11px] text-muted-foreground/70">Updated {ago}</p>
+            )}
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
