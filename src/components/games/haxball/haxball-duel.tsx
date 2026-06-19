@@ -102,11 +102,13 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
       while (acc >= TICK_MS) {
         acc -= TICK_MS;
         if (isHost) {
+          // step() keys inputs by player index: p0 = host (team A), p1 = guest.
           const inputs: InputMap = {
-            A: { move: { x: myInputRef.current.x, y: myInputRef.current.y }, kick: myInputRef.current.kick },
-            B: { move: { x: oppInputRef.current.x, y: oppInputRef.current.y }, kick: oppInputRef.current.kick },
+            p0: { move: { x: myInputRef.current.x, y: myInputRef.current.y }, kick: myInputRef.current.kick },
+            p1: { move: { x: oppInputRef.current.x, y: oppInputRef.current.y }, kick: oppInputRef.current.kick },
           };
-          stateRef.current = step(stateRef.current, inputs, TICK_MS);
+          // step() expects dt in SECONDS (matches physics.ts self-check DT).
+          stateRef.current = step(stateRef.current, inputs, TICK_MS / 1000);
           const s = stateRef.current;
           if ((s.scoreA !== hud.a || s.scoreB !== hud.b)) setHud({ a: s.scoreA, b: s.scoreB });
           if (++tick % BROADCAST_EVERY === 0) broadcast("hax_state", s);
