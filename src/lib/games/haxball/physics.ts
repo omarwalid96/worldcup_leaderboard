@@ -151,9 +151,11 @@ interface Segment {
   bCoef: number;
 }
 
-// HaxBall Classic: walls have zero restitution (absorb, don't bounce).
-// bCoef=0.5 here caused the ball to ping/buzz against walls at rest; 0.0 = dead stop.
-const WALL_BCOEF = 0.0;
+// Wall restitution. 0.4 gives combined e≈0.447 (sqrt(BALL_BCOEF*WALL_BCOEF)).
+// Real HaxBall Classic uses ~0.5 on hard surfaces; 0.4 is slightly softer so
+// the ball doesn't ricochet forever on a small field, but still bounces visibly.
+// The old value was 0.0 (dead stop = no bounce at all, which felt wrong).
+const WALL_BCOEF = 0.4;
 
 // Top wall (normal points down = +y inward from -HALF_H boundary)
 // Bottom wall (normal points up = -y inward from +HALF_H boundary)
@@ -427,8 +429,15 @@ export function step(state: HaxState, inputs: InputMap, dt: number): HaxState {
   for (const seg of PLAYER_WALL_SEGMENTS) {
     for (const p of s.players) resolveDiscWall(p, seg);
   }
-  for (const seg of WALL_SEGMENTS) {
-    resolveDiscWall(s.ball, seg);
+  // Two passes for the ball: sequential impulse ordering means resolving wall A
+  // can push the ball into wall B; the second pass catches the new overlap and
+  // lets both walls agree on a consistent post-separation normal. This eliminates
+  // the corner trap without any structural changes. One extra O(segments) pass
+  // is negligible for a 6-segment field.
+  for (let iter = 0; iter < 2; iter++) {
+    for (const seg of WALL_SEGMENTS) {
+      resolveDiscWall(s.ball, seg);
+    }
   }
 
   // ── 5. Goal detection ─────────────────────────────────────────────────────
@@ -510,19 +519,34 @@ function demo(): void {
     );
   }
 
-  // ── Test 4: Ball stops at right wall (Classic WALL_BCOEF=0 → dead stop, not bounce) ──
+  // ── Test 4: Ball hits right wall, bounces back, does not tunnel ─────────────
+  // WALL_BCOEF=0.4 → combined e≈0.447; ball must rebound (vel.x < 0 shortly
+  // after contact) and must not pass through the wall face or gain energy.
   {
     let s = createInitialState();
-    // Give ball a strong rightward velocity, outside goal mouth so it hits wall, not goal
-    s.ball.vel = { x: 8, y: 0 };
+    // Strong rightward velocity, outside goal mouth so it hits the wall panel, not the goal
+    const initSpeed = 8;
+    s.ball.vel = { x: initSpeed, y: 0 };
     s.ball.pos = { x: 0, y: GOAL_HALF + BALL_RADIUS + 5 };
-    for (let i = 0; i < 120; i++) s = step(s, {}, DT);
-    // With WALL_BCOEF=0 (Classic HaxBall) restitution is 0: vel killed on contact,
-    // ball clamped at the wall face. Should not pass through and should not bounce back.
+    // Run just long enough to hit the wall and record immediately post-bounce
+    let bouncedBack = false;
+    for (let i = 0; i < 120; i++) {
+      s = step(s, {}, DT);
+      if (s.ball.vel.x < -0.1) bouncedBack = true;
+    }
     assert(
-      s.ball.pos.x <= HALF_W + BALL_RADIUS &&
-      Math.abs(s.ball.vel.x) < 1.0,
-      `Ball stops at right wall — pos.x=${s.ball.pos.x.toFixed(2)}, vel.x=${s.ball.vel.x.toFixed(3)}`
+      s.ball.pos.x <= HALF_W,
+      `Ball did not tunnel through right wall — pos.x=${s.ball.pos.x.toFixed(2)}, wall=${HALF_W}`
+    );
+    assert(
+      bouncedBack,
+      `Ball bounced back from right wall (vel.x went negative)`
+    );
+    // Energy must not have increased: final speed ≤ initial speed (damping applies)
+    const finalSpeed = len(s.ball.vel);
+    assert(
+      finalSpeed <= initSpeed,
+      `Ball did not gain energy after wall bounce — final speed=${finalSpeed.toFixed(3)}, init=${initSpeed}`
     );
   }
 
@@ -581,6 +605,54 @@ function demo(): void {
     assert(
       moved > BALL_RADIUS && s.ball.pos.x < before.x,
       `Kicked ball leaves the corner (moved ${moved.toFixed(2)}px, now x=${s.ball.pos.x.toFixed(1)})`
+    );
+  }
+
+  // ── Test 9: Ball thrown into corner escapes under its own inertia ────────────
+  // Unlike Test 8 (player kicks the ball out), this fires the ball INTO a corner
+  // with velocity and checks the double-pass wall resolution bounces it back out
+  // instead of trapping it.
+  {
+    let s = createInitialState();
+    // Fire toward the top-right corner; position just inside the field
+    s.ball.pos = { x: HALF_W - 30, y: -(HALF_H - 30) };
+    s.ball.vel = { x: 6, y: -6 };
+    for (let i = 0; i < 60; i++) s = step(s, {}, DT);
+    const speed = len(s.ball.vel);
+    // Ball must still be moving (not trapped at zero velocity) and inside the field
+    assert(
+      speed > 0.5,
+      `Ball fired into corner escapes and retains speed (speed=${speed.toFixed(3)} after 60 ticks)`
+    );
+    assert(
+      s.ball.pos.x <= HALF_W - BALL_RADIUS + 1 &&
+      s.ball.pos.y >= -(HALF_H - BALL_RADIUS + 1),
+      `Ball stayed inside field after corner bounce (pos=${s.ball.pos.x.toFixed(1)},${s.ball.pos.y.toFixed(1)})`
+    );
+  }
+
+  // ── Test 10: Ball bounces off top wall (perpendicular) ────────────────────
+  // Fires the ball straight up; it should reflect downward with ~e≈0.447 of its
+  // approach speed. Confirms the bounce fix works for horizontal walls too.
+  {
+    let s = createInitialState();
+    s.ball.pos = { x: 0, y: 0 };
+    const upSpeed = 7;
+    s.ball.vel = { x: 0, y: -upSpeed }; // negative y = upward
+    let hitTop = false;
+    let reflectedDown = false;
+    for (let i = 0; i < 60; i++) {
+      s = step(s, {}, DT);
+      if (s.ball.pos.y <= -(HALF_H - BALL_RADIUS - 1)) hitTop = true;
+      if (hitTop && s.ball.vel.y > 0.1) reflectedDown = true;
+    }
+    assert(
+      hitTop,
+      `Ball reached top wall (min y achieved)`
+    );
+    assert(
+      reflectedDown,
+      `Ball reflected downward after top-wall bounce (vel.y went positive)`
     );
   }
 

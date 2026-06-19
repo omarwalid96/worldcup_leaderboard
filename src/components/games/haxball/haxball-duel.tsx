@@ -22,7 +22,8 @@ import { GOAL_CAP } from "@/lib/games/haxball/reducer";
 
 const SERVER_URL = process.env.NEXT_PUBLIC_HAXBALL_WS; // wss://haxball-eznii.fly.dev
 const INPUT_HZ_MS = 33; // send input ~30Hz
-const INTERP_MS = TICK_MS * 2; // small buffer to ride packet jitter at 60Hz server push
+const MIN_INTERP_MS = TICK_MS;      // floor so a fast burst doesn't render instantly
+const MAX_EXTRAP = 1.6;             // allow ~60% coast past B when a packet is late (vs freezing)
 
 /**
  * Real-time 1v1 HaxBall. A dedicated WS server (server/haxball) runs the
@@ -53,6 +54,7 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
   const snapA = useRef<HaxState>(createInitialState());
   const snapB = useRef<HaxState>(createInitialState());
   const snapBAt = useRef(0);
+  const interpMs = useRef(TICK_MS); // measured gap between the last two packets (smoothed)
   const finishedRef = useRef(false);
 
   // Connect to the authoritative server; render whatever it pushes.
@@ -75,9 +77,14 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
       if (m.t === "joined") { console.log("[hax] joined as", m.slot); return; }
       if (m.t !== "state" || !m.s) return;
       const s = m.s;
+      const now = performance.now();
+      // Smooth the measured inter-packet gap so render speed tracks actual
+      // delivery rate (rides jitter instead of freezing-then-snapping).
+      const gap = Math.max(MIN_INTERP_MS, now - snapBAt.current);
+      interpMs.current = interpMs.current * 0.8 + gap * 0.2;
       snapA.current = snapB.current;
       snapB.current = s;
-      snapBAt.current = performance.now();
+      snapBAt.current = now;
       if (s.scoreA !== hud.a || s.scoreB !== hud.b) setHud({ a: s.scoreA, b: s.scoreB });
 
       // Either client commits the finished result once (idempotent server-side).
@@ -112,7 +119,11 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
     const frame = () => {
       raf = requestAnimationFrame(frame);
       const goalSnap = snapB.current.goalEvent != null;
-      const t = goalSnap ? 1 : Math.min(1, (performance.now() - snapBAt.current) / INTERP_MS);
+      // t in [0, MAX_EXTRAP]: <1 interpolates A→B, >1 briefly coasts past B so a
+      // late packet keeps motion smooth instead of stalling. Snap on goals.
+      const t = goalSnap
+        ? 1
+        : Math.min(MAX_EXTRAP, (performance.now() - snapBAt.current) / interpMs.current);
       draw(ctx, lerpState(snapA.current, snapB.current, t));
     };
     raf = requestAnimationFrame(frame);
