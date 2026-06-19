@@ -166,9 +166,17 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
         const seq = nextInputSeq.current++;
         pendingInputs.current.push({ seq, input: currentInput });
 
-        // 3. Send input to server immediately
+        // 3. Send input to server immediately (flat format: { x, y, kick } matching server's normInput)
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify({ t: "input", seq, move: currentInput }));
+          wsRef.current.send(JSON.stringify({
+            t: "input",
+            seq,
+            move: {
+              x: currentInput.move.x,
+              y: currentInput.move.y,
+              kick: currentInput.kick,
+            },
+          }));
         }
 
         // 4. Simulate physics locally
