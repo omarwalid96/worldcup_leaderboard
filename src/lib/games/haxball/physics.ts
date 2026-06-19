@@ -49,7 +49,7 @@ export const PLAYER_KICK_STRENGTH   = 5.0;   // impulse on ball contact while ki
 export const BALL_RADIUS    = 10;
 export const BALL_INV_MASS  = 1.0;
 export const BALL_BCOEF     = 0.5;
-export const BALL_DAMPING   = 0.99;   // raise → livelier; lower → more friction
+export const BALL_DAMPING   = 0.985;  // raise → livelier; lower → more friction. 0.99 rolled forever; 0.985 stops in ~3s at typical kick speed
 
 // Velocity threshold below which a disc is considered "at rest" for sleep purposes
 const SLEEP_THRESHOLD = 0.005;
@@ -151,7 +151,9 @@ interface Segment {
   bCoef: number;
 }
 
-const WALL_BCOEF = 0.5;
+// HaxBall Classic: walls have zero restitution (absorb, don't bounce).
+// bCoef=0.5 here caused the ball to ping/buzz against walls at rest; 0.0 = dead stop.
+const WALL_BCOEF = 0.0;
 
 // Top wall (normal points down = +y inward from -HALF_H boundary)
 // Bottom wall (normal points up = -y inward from +HALF_H boundary)
@@ -365,12 +367,14 @@ export function step(state: HaxState, inputs: InputMap, dt: number): HaxState {
   const allDiscs: Disc[] = [...s.players, s.ball];
 
   for (const d of allDiscs) {
-    // Sleep: skip integration if velocity negligible (avoids fp drift at rest)
+    // Apply damping first so the disc decelerates smoothly into the sleep threshold
+    // rather than integrating a full step and then snapping to zero next tick.
+    d.vel = scale(d.vel, d.damping);
+    // Sleep: zero velocity below threshold to avoid fp drift at rest
     if (Math.abs(d.vel.x) < SLEEP_THRESHOLD && Math.abs(d.vel.y) < SLEEP_THRESHOLD) {
       d.vel = { x: 0, y: 0 };
     } else {
       d.pos = add(d.pos, scale(d.vel, dt * 60)); // integrate (units/tick at 60Hz reference)
-      d.vel = scale(d.vel, d.damping);           // damping
     }
   }
 
@@ -490,19 +494,20 @@ function demo(): void {
     );
   }
 
-  // ── Test 4: Ball bounces off right wall (vel.x flips) ─────────────────────
+  // ── Test 4: Ball stops at right wall (Classic WALL_BCOEF=0 → dead stop, not bounce) ──
   {
     let s = createInitialState();
-    // Give ball a strong rightward velocity
+    // Give ball a strong rightward velocity, outside goal mouth so it hits wall, not goal
     s.ball.vel = { x: 8, y: 0 };
-    // Position it away from goal mouth (y offset outside goal gap) so it hits wall, not goal
     s.ball.pos = { x: 0, y: GOAL_HALF + BALL_RADIUS + 5 };
-    let hitWall = false;
-    for (let i = 0; i < 120; i++) {
-      s = step(s, {}, DT);
-      if (s.ball.vel.x < -0.1) { hitWall = true; break; }
-    }
-    assert(hitWall, "Ball bounces off right side wall (vel.x flips negative)");
+    for (let i = 0; i < 120; i++) s = step(s, {}, DT);
+    // With WALL_BCOEF=0 (Classic HaxBall) restitution is 0: vel killed on contact,
+    // ball clamped at the wall face. Should not pass through and should not bounce back.
+    assert(
+      s.ball.pos.x <= HALF_W + BALL_RADIUS &&
+      Math.abs(s.ball.vel.x) < 1.0,
+      `Ball stops at right wall — pos.x=${s.ball.pos.x.toFixed(2)}, vel.x=${s.ball.vel.x.toFixed(3)}`
+    );
   }
 
   // ── Test 5: Ball in goal mouth scores ─────────────────────────────────────

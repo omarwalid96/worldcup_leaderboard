@@ -10,6 +10,7 @@ import type { GameComponentProps } from "@/lib/games/types";
 import {
   step,
   createInitialState,
+  resetKickoff,
   TICK_MS,
   FIELD_W,
   FIELD_H,
@@ -62,13 +63,34 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
   const myInputRef = useRef<Vec2 & { kick: boolean }>({ x: 0, y: 0, kick: false });
   const oppInputRef = useRef<{ x: number; y: number; kick: boolean }>({ x: 0, y: 0, kick: false });
   const finishedRef = useRef(false);
+  // Track HUD score as a ref so the host loop can compare without a stale closure.
+  const hudRef = useRef({ a: 0, b: 0 });
+
+  // Guest interpolation: buffer the two most recent authoritative snapshots so we
+  // can render lerped positions at 60fps instead of teleporting at 20Hz.
+  // snapshotA is the "from" state, snapshotB is the "to" state; interpT is in [0,1].
+  const snapA = useRef<HaxState>(createInitialState());
+  const snapB = useRef<HaxState>(createInitialState());
+  const interpT = useRef(0);
+  // Timestamp (performance.now) when snapB arrived — used to compute t each rAF.
+  const snapBTime = useRef(0);
+  // How long we expect between snapshots (ms). Slightly larger than the broadcast
+  // interval so we are always interpolating into the past rather than extrapolating.
+  const INTERP_DELAY_MS = TICK_MS * 4; // ~67ms @ 60Hz ticks, 3-tick broadcast cadence
 
   // Guest: receive authoritative state from host.
+  // Each incoming snapshot becomes the new interpolation target. The previous
+  // target becomes the "from" snapshot so we lerp position/velocity between the
+  // two at rAF rate rather than teleporting at the ~20Hz broadcast cadence.
   useEffect(() => {
     if (isHost) return;
     return onBroadcast("hax_state", (p) => {
       const s = p as HaxState;
-      stateRef.current = s;
+      // Advance the buffer: previous "to" becomes "from", new snapshot is "to".
+      snapA.current = snapB.current;
+      snapB.current = s;
+      snapBTime.current = performance.now();
+      interpT.current = 0;
       setHud({ a: s.scoreA, b: s.scoreB });
     });
   }, [isHost, onBroadcast]);
@@ -109,8 +131,18 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
           };
           // step() expects dt in SECONDS (matches physics.ts self-check DT).
           stateRef.current = step(stateRef.current, inputs, TICK_MS / 1000);
-          const s = stateRef.current;
-          if ((s.scoreA !== hud.a || s.scoreB !== hud.b)) setHud({ a: s.scoreA, b: s.scoreB });
+          let s = stateRef.current;
+          // step() scores +1 every tick the ball sits in the goal and leaves
+          // reset to the caller — so reset immediately to score exactly once.
+          if (s.goalEvent) {
+            s = resetKickoff(s, s.goalEvent);
+            stateRef.current = s;
+          }
+          // Use hudRef (not the closed-over hud state) to avoid stale comparison.
+          if (s.scoreA !== hudRef.current.a || s.scoreB !== hudRef.current.b) {
+            hudRef.current = { a: s.scoreA, b: s.scoreB };
+            setHud(hudRef.current);
+          }
           if (++tick % BROADCAST_EVERY === 0) broadcast("hax_state", s);
 
           // Win condition → commit once.
@@ -128,7 +160,18 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
           if (++tick % BROADCAST_EVERY === 0) broadcast("hax_input", myInputRef.current);
         }
       }
-      draw(ctx, stateRef.current);
+
+      if (isHost) {
+        // Host: draw its own live 60Hz simulation state directly.
+        draw(ctx, stateRef.current);
+      } else {
+        // Guest: interpolate between the two most recent authoritative snapshots
+        // so discs move smoothly at 60fps instead of teleporting at ~20Hz.
+        // t = elapsed since snapB arrived / expected broadcast interval, clamped [0,1].
+        const elapsed = now - snapBTime.current;
+        const t = Math.min(1, elapsed / INTERP_DELAY_MS);
+        draw(ctx, lerpState(snapA.current, snapB.current, t));
+      }
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
@@ -233,6 +276,25 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
       />
     </div>
   );
+}
+
+/**
+ * Linearly interpolate between two HaxState snapshots.
+ * Only positions are lerped — vel/scores/etc come from `b` (the authoritative "to" state).
+ * Used exclusively on the guest render path to smooth 20Hz → 60fps.
+ */
+function lerpVec(a: Vec2, b: Vec2, t: number): Vec2 {
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+}
+function lerpState(a: HaxState, b: HaxState, t: number): HaxState {
+  return {
+    ...b,
+    ball: { ...b.ball, pos: lerpVec(a.ball.pos, b.ball.pos, t) },
+    players: b.players.map((pb, i) => ({
+      ...pb,
+      pos: lerpVec(a.players[i]?.pos ?? pb.pos, pb.pos, t),
+    })),
+  };
 }
 
 /** Draw the pitch + discs. ponytail: both players see the same orientation
