@@ -25,6 +25,23 @@ import { GOAL_CAP } from "@/lib/games/haxball/reducer";
 
 const BROADCAST_EVERY = 3; // host broadcasts state every 3rd tick (~20Hz)
 
+// Goal celebration: hold the scored state (ball in goal, score+1) this many
+// ticks before resetting kickoff, so the guest definitely receives + renders a
+// "ball at the line, score incremented" frame instead of lerping across the reset.
+const GOAL_HOLD_TICKS = 18; // ~300ms @ 60Hz
+
+// ponytail: guest-input ring buffer. Cap bounds memory under packet bursts;
+// true rewind/replay (CCP) is the upgrade if input lag still matters.
+const INPUT_QUEUE_MAX = 10;
+
+interface GuestInput {
+  x: number;
+  y: number;
+  kick: boolean;
+  /** Sim tick the guest generated this input for. */
+  tick: number;
+}
+
 /**
  * Real-time 1v1 HaxBall duel. Host-authoritative over Supabase Realtime:
  *  - P1 (host) runs the physics loop and broadcasts HaxState ~20Hz.
@@ -61,8 +78,16 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
   // Mutable refs the loop reads without re-subscribing.
   const stateRef = useRef<HaxState>(createInitialState());
   const myInputRef = useRef<Vec2 & { kick: boolean }>({ x: 0, y: 0, kick: false });
-  const oppInputRef = useRef<{ x: number; y: number; kick: boolean }>({ x: 0, y: 0, kick: false });
+  // Host: queued guest inputs stamped with their target tick. Newest applicable
+  // entry (tick <= currentSimTick) is applied each step; empties → last input persists.
+  const oppInputQueueRef = useRef<GuestInput[]>([]);
+  // Last applied guest input, carried forward when the queue is empty.
+  const lastOppInputRef = useRef<GuestInput>({ x: 0, y: 0, kick: false, tick: 0 });
+  // Guest: best estimate of the current sim tick, to stamp outgoing input.
+  const guestTickRef = useRef(0);
   const finishedRef = useRef(false);
+  // Host: ticks remaining in the goal-hold window before resetKickoff fires.
+  const goalHoldRef = useRef(0);
   // Track HUD score as a ref so the host loop can compare without a stale closure.
   const hudRef = useRef({ a: 0, b: 0 });
 
@@ -86,20 +111,33 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
     if (isHost) return;
     return onBroadcast("hax_state", (p) => {
       const s = p as HaxState;
+      // Supabase broadcast is best-effort + unordered: drop stale/out-of-order
+      // snapshots so the lerp invariant (snapB always newer than snapA) holds.
+      if (s.tick <= snapB.current.tick) return;
       // Advance the buffer: previous "to" becomes "from", new snapshot is "to".
       snapA.current = snapB.current;
       snapB.current = s;
       snapBTime.current = performance.now();
-      interpT.current = 0;
+      // On a goal frame, snap (no lerp) so the ball is shown at the goal line
+      // with the incremented score instead of lerping across the reset.
+      interpT.current = s.goalEvent ? 1 : 0;
+      // Keep the guest's tick estimate synced to the host sim for input stamping.
+      guestTickRef.current = s.tick;
       setHud({ a: s.scoreA, b: s.scoreB });
     });
   }, [isHost, onBroadcast]);
 
-  // Host: receive guest's input.
+  // Host: receive guest's input → queue (drop stale/dup ticks, cap length).
   useEffect(() => {
     if (!isHost) return;
     return onBroadcast("hax_input", (p) => {
-      oppInputRef.current = p as { x: number; y: number; kick: boolean };
+      const input = p as GuestInput;
+      const q = oppInputQueueRef.current;
+      // Drop if older than or equal to the newest queued tick (out-of-order/dup).
+      const lastTick = q.length ? q[q.length - 1].tick : lastOppInputRef.current.tick;
+      if (input.tick <= lastTick) return;
+      q.push(input);
+      if (q.length > INPUT_QUEUE_MAX) q.shift();
     });
   }, [isHost, onBroadcast]);
 
@@ -124,26 +162,52 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
       while (acc >= TICK_MS) {
         acc -= TICK_MS;
         if (isHost) {
-          // step() keys inputs by player index: p0 = host (team A), p1 = guest.
-          const inputs: InputMap = {
-            p0: { move: { x: myInputRef.current.x, y: myInputRef.current.y }, kick: myInputRef.current.kick },
-            p1: { move: { x: oppInputRef.current.x, y: oppInputRef.current.y }, kick: oppInputRef.current.kick },
-          };
-          // step() expects dt in SECONDS (matches physics.ts self-check DT).
-          stateRef.current = step(stateRef.current, inputs, TICK_MS / 1000);
           let s = stateRef.current;
-          // step() scores +1 every tick the ball sits in the goal and leaves
-          // reset to the caller — so reset immediately to score exactly once.
-          if (s.goalEvent) {
-            s = resetKickoff(s, s.goalEvent);
+
+          // Goal hold window: freeze the sim with the ball in the goal + score
+          // incremented, broadcasting every tick so the guest renders the goal
+          // frame. Skip stepping (would re-score/push the ball). Reset after.
+          if (goalHoldRef.current > 0) {
+            goalHoldRef.current -= 1;
+            if (goalHoldRef.current === 0) {
+              s = resetKickoff(s, s.goalEvent ?? "A");
+              stateRef.current = s;
+            }
+          } else {
+            // Pop the newest queued guest input applicable to this sim tick
+            // (tick <= s.tick); carry last forward when the queue is empty.
+            const q = oppInputQueueRef.current;
+            const simTick = s.tick;
+            while (q.length > 1 && q[1].tick <= simTick) {
+              lastOppInputRef.current = q.shift()!;
+            }
+            if (q.length && q[0].tick <= simTick) {
+              lastOppInputRef.current = q.shift()!;
+            }
+            const opp = lastOppInputRef.current;
+
+            const inputs: InputMap = {
+              p0: { move: { x: myInputRef.current.x, y: myInputRef.current.y }, kick: myInputRef.current.kick },
+              p1: { move: { x: opp.x, y: opp.y }, kick: opp.kick },
+            };
+            // step() expects dt in SECONDS (matches physics.ts self-check DT).
+            s = step(stateRef.current, inputs, TICK_MS / 1000);
             stateRef.current = s;
+
+            // A goal fired → enter the hold window (don't reset yet).
+            if (s.goalEvent) goalHoldRef.current = GOAL_HOLD_TICKS;
           }
+
           // Use hudRef (not the closed-over hud state) to avoid stale comparison.
           if (s.scoreA !== hudRef.current.a || s.scoreB !== hudRef.current.b) {
             hudRef.current = { a: s.scoreA, b: s.scoreB };
             setHud(hudRef.current);
           }
-          if (++tick % BROADCAST_EVERY === 0) broadcast("hax_state", s);
+          // Broadcast every tick during a goal hold (so the guest catches it),
+          // otherwise every BROADCAST_EVERY-th tick (~20Hz).
+          const holding = goalHoldRef.current > 0;
+          tick += 1;
+          if (holding || tick % BROADCAST_EVERY === 0) broadcast("hax_state", s);
 
           // Win condition → commit once.
           if (!finishedRef.current && (s.scoreA >= GOAL_CAP || s.scoreB >= GOAL_CAP)) {
@@ -156,8 +220,19 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
             });
           }
         } else {
-          // Guest just keeps shipping its input; rendering uses received state.
-          if (++tick % BROADCAST_EVERY === 0) broadcast("hax_input", myInputRef.current);
+          // Guest ships its input stamped with its best estimate of the sim tick
+          // (advanced from the last received snapshot's tick); rendering uses
+          // received state.
+          guestTickRef.current += 1;
+          tick += 1;
+          if (tick % BROADCAST_EVERY === 0) {
+            broadcast("hax_input", {
+              x: myInputRef.current.x,
+              y: myInputRef.current.y,
+              kick: myInputRef.current.kick,
+              tick: guestTickRef.current,
+            });
+          }
         }
       }
 
@@ -168,8 +243,11 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
         // Guest: interpolate between the two most recent authoritative snapshots
         // so discs move smoothly at 60fps instead of teleporting at ~20Hz.
         // t = elapsed since snapB arrived / expected broadcast interval, clamped [0,1].
+        // During a goal frame, render the authoritative snapshot directly (no lerp)
+        // so the ball sits at the goal line with the incremented score.
+        const goalSnap = snapB.current.goalEvent != null;
         const elapsed = now - snapBTime.current;
-        const t = Math.min(1, elapsed / INTERP_DELAY_MS);
+        const t = goalSnap ? 1 : Math.min(1, elapsed / INTERP_DELAY_MS);
         draw(ctx, lerpState(snapA.current, snapB.current, t));
       }
     };
