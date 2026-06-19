@@ -29,27 +29,27 @@ export const TICK_MS = 1000 / 60; // ~16.67 ms
 // Field geometry (logical units — scale to canvas in the renderer, not here)
 export const FIELD_W = 420;    // total field width  (goal line to goal line)
 export const FIELD_H = 200;    // total field height (top to bottom wall)
-export const GOAL_H  =  64;    // gap in the end wall — raised from Classic's 60 for mobile feel
+export const GOAL_H = 64;    // gap in the end wall — raised from Classic's 60 for mobile feel
 
 // Derived geometry — computed once, immutable
-export const HALF_W  = FIELD_W / 2;   // 210
-export const HALF_H  = FIELD_H / 2;   // 100
+export const HALF_W = FIELD_W / 2;   // 210
+export const HALF_H = FIELD_H / 2;   // 100
 export const GOAL_HALF = GOAL_H / 2;  // 32
 
 // Player physics (HaxBall Classic defaults, slightly more forgiving for touch)
-export const PLAYER_RADIUS          = 15;
-export const PLAYER_INV_MASS        = 0.5;
-export const PLAYER_BCOEF           = 0.5;
-export const PLAYER_DAMPING         = 0.96;
-export const PLAYER_ACCELERATION    = 0.10;  // raise → snappier; lower → floatier
-export const PLAYER_KICK_ACCEL      = 0.07;  // lower accel while kick held (mirrors HaxBall)
-export const PLAYER_KICK_STRENGTH   = 5.0;   // impulse on ball contact while kick held
+export const PLAYER_RADIUS = 15;
+export const PLAYER_INV_MASS = 0.5;
+export const PLAYER_BCOEF = 0.5;
+export const PLAYER_DAMPING = 0.96;
+export const PLAYER_ACCELERATION = 0.10;  // raise → snappier; lower → floatier
+export const PLAYER_KICK_ACCEL = 0.07;  // lower accel while kick held (mirrors HaxBall)
+export const PLAYER_KICK_STRENGTH = 5.0;   // impulse on ball contact while kick held
 
 // Ball physics
-export const BALL_RADIUS    = 10;
-export const BALL_INV_MASS  = 1.0;
-export const BALL_BCOEF     = 0.5;
-export const BALL_DAMPING   = 0.985;  // raise → livelier; lower → more friction. 0.99 rolled forever; 0.985 stops in ~3s at typical kick speed
+export const BALL_RADIUS = 10;
+export const BALL_INV_MASS = 1.0;
+export const BALL_BCOEF = 0.5;
+export const BALL_DAMPING = 0.985;  // raise → livelier; lower → more friction. 0.99 rolled forever; 0.985 stops in ~3s at typical kick speed
 
 // Velocity threshold below which a disc is considered "at rest" for sleep purposes
 const SLEEP_THRESHOLD = 0.005;
@@ -64,26 +64,26 @@ export interface Vec2 {
 }
 
 export interface Disc {
-  pos:     Vec2;
-  vel:     Vec2;
-  radius:  number;
+  pos: Vec2;
+  vel: Vec2;
+  radius: number;
   invMass: number;  // 0 = immovable wall segment proxy
-  bCoef:   number;  // coefficient of restitution [0..1]
+  bCoef: number;  // coefficient of restitution [0..1]
   damping: number;  // velocity multiplier per tick [0..1]
 }
 
 export interface PlayerDisc extends Disc {
-  team:    "A" | "B";
+  team: "A" | "B";
   kicking: boolean;  // input state — true while kick button held
-  kicked:  boolean;  // true after kick impulse fired this contact; resets when contact ends
+  kicked: boolean;  // true after kick impulse fired this contact; resets when contact ends
 }
 
 export interface HaxState {
   players: PlayerDisc[];      // index 0 = team A, index 1 = team B (1v1)
-  ball:    Disc;
-  scoreA:  number;
-  scoreB:  number;
-  tick:    number;
+  ball: Disc;
+  scoreA: number;
+  scoreB: number;
+  tick: number;
   /** Set for exactly one tick after a goal is scored; null otherwise. */
   goalEvent: "A" | "B" | null;
 }
@@ -118,14 +118,14 @@ function clampMag(v: Vec2, maxLen: number): Vec2 {
 // Deep clone — keeps step() pure (no mutation of input state)
 // ---------------------------------------------------------------------------
 
-function cloneState(s: HaxState): HaxState {
+export function cloneState(s: HaxState): HaxState {
   return {
-    players:    s.players.map(p => ({ ...p, pos: { ...p.pos }, vel: { ...p.vel } })),
-    ball:       { ...s.ball, pos: { ...s.ball.pos }, vel: { ...s.ball.vel } },
-    scoreA:     s.scoreA,
-    scoreB:     s.scoreB,
-    tick:       s.tick,
-    goalEvent:  s.goalEvent,
+    players: s.players.map(p => ({ ...p, pos: { ...p.pos }, vel: { ...p.vel } })),
+    ball: { ...s.ball, pos: { ...s.ball.pos }, vel: { ...s.ball.vel } },
+    scoreA: s.scoreA,
+    scoreB: s.scoreB,
+    tick: s.tick,
+    goalEvent: s.goalEvent,
   };
 }
 
@@ -163,17 +163,17 @@ const WALL_BCOEF = 0.4;
 // Right wall top piece and bottom piece (normal points left = -x)
 const WALL_SEGMENTS: Segment[] = [
   // Top wall
-  { a: { x: -HALF_W, y: -HALF_H }, b: { x: HALF_W, y: -HALF_H }, normal: { x:  0, y:  1 }, bCoef: WALL_BCOEF },
+  { a: { x: -HALF_W, y: -HALF_H }, b: { x: HALF_W, y: -HALF_H }, normal: { x: 0, y: 1 }, bCoef: WALL_BCOEF },
   // Bottom wall
-  { a: { x:  HALF_W, y:  HALF_H }, b: { x: -HALF_W, y: HALF_H }, normal: { x:  0, y: -1 }, bCoef: WALL_BCOEF },
+  { a: { x: HALF_W, y: HALF_H }, b: { x: -HALF_W, y: HALF_H }, normal: { x: 0, y: -1 }, bCoef: WALL_BCOEF },
   // Left wall — top piece (above goal)
-  { a: { x: -HALF_W, y: -HALF_H }, b: { x: -HALF_W, y: -GOAL_HALF }, normal: { x:  1, y:  0 }, bCoef: WALL_BCOEF },
+  { a: { x: -HALF_W, y: -HALF_H }, b: { x: -HALF_W, y: -GOAL_HALF }, normal: { x: 1, y: 0 }, bCoef: WALL_BCOEF },
   // Left wall — bottom piece (below goal)
-  { a: { x: -HALF_W, y:  GOAL_HALF }, b: { x: -HALF_W, y: HALF_H },  normal: { x:  1, y:  0 }, bCoef: WALL_BCOEF },
+  { a: { x: -HALF_W, y: GOAL_HALF }, b: { x: -HALF_W, y: HALF_H }, normal: { x: 1, y: 0 }, bCoef: WALL_BCOEF },
   // Right wall — top piece
-  { a: { x:  HALF_W, y: -HALF_H }, b: { x: HALF_W, y: -GOAL_HALF },  normal: { x: -1, y:  0 }, bCoef: WALL_BCOEF },
+  { a: { x: HALF_W, y: -HALF_H }, b: { x: HALF_W, y: -GOAL_HALF }, normal: { x: -1, y: 0 }, bCoef: WALL_BCOEF },
   // Right wall — bottom piece
-  { a: { x:  HALF_W, y:  GOAL_HALF }, b: { x: HALF_W, y: HALF_H },   normal: { x: -1, y:  0 }, bCoef: WALL_BCOEF },
+  { a: { x: HALF_W, y: GOAL_HALF }, b: { x: HALF_W, y: HALF_H }, normal: { x: -1, y: 0 }, bCoef: WALL_BCOEF },
 ];
 
 // Players are blocked from the goal mouths (only the ball may enter). Same walls
@@ -181,9 +181,9 @@ const WALL_SEGMENTS: Segment[] = [
 const PLAYER_WALL_SEGMENTS: Segment[] = [
   ...WALL_SEGMENTS,
   // Left goal mouth — solid for players
-  { a: { x: -HALF_W, y: -GOAL_HALF }, b: { x: -HALF_W, y: GOAL_HALF }, normal: { x:  1, y: 0 }, bCoef: WALL_BCOEF },
+  { a: { x: -HALF_W, y: -GOAL_HALF }, b: { x: -HALF_W, y: GOAL_HALF }, normal: { x: 1, y: 0 }, bCoef: WALL_BCOEF },
   // Right goal mouth — solid for players
-  { a: { x:  HALF_W, y: -GOAL_HALF }, b: { x:  HALF_W, y: GOAL_HALF }, normal: { x: -1, y: 0 }, bCoef: WALL_BCOEF },
+  { a: { x: HALF_W, y: -GOAL_HALF }, b: { x: HALF_W, y: GOAL_HALF }, normal: { x: -1, y: 0 }, bCoef: WALL_BCOEF },
 ];
 
 /**
@@ -212,7 +212,7 @@ function closestPointOnSegment(p: Vec2, a: Vec2, b: Vec2): { pt: Vec2; t: number
  */
 function resolveDiscDisc(a: Disc, b: Disc): void {
   const delta = sub(b.pos, a.pos);
-  const dist  = len(delta);
+  const dist = len(delta);
   const minDist = a.radius + b.radius;
   if (dist >= minDist || dist < 1e-9) return;
 
@@ -241,7 +241,7 @@ function resolveDiscDisc(a: Disc, b: Disc): void {
 function resolveDiscWall(d: Disc, seg: Segment): void {
   const { pt, t } = closestPointOnSegment(d.pos, seg.a, seg.b);
   const delta = sub(d.pos, pt);
-  const dist  = len(delta);
+  const dist = len(delta);
   if (dist >= d.radius || dist < 1e-9) return;
 
   // At a corner the closest point is a segment endpoint (t≈0 or t≈1). Using the
@@ -276,7 +276,7 @@ function resolveDiscWall(d: Disc, seg: Segment): void {
 function detectGoal(ball: Disc): "A" | "B" | null {
   const inGoalY = Math.abs(ball.pos.y) <= GOAL_HALF; // vertically in goal mouth
   if (!inGoalY) return null;
-  if (ball.pos.x - ball.radius >  HALF_W) return "A"; // ball fully past right → A scores
+  if (ball.pos.x - ball.radius > HALF_W) return "A"; // ball fully past right → A scores
   if (ball.pos.x + ball.radius < -HALF_W) return "B"; // ball fully past left  → B scores
   return null;
 }
@@ -290,39 +290,39 @@ export function createInitialState(): HaxState {
   return {
     players: [
       {
-        pos:     { x: -80, y: 0 },
-        vel:     { x:   0, y: 0 },
-        radius:  PLAYER_RADIUS,
+        pos: { x: -80, y: 0 },
+        vel: { x: 0, y: 0 },
+        radius: PLAYER_RADIUS,
         invMass: PLAYER_INV_MASS,
-        bCoef:   PLAYER_BCOEF,
+        bCoef: PLAYER_BCOEF,
         damping: PLAYER_DAMPING,
-        team:    "A",
+        team: "A",
         kicking: false,
-        kicked:  false,
+        kicked: false,
       },
       {
-        pos:     { x:  80, y: 0 },
-        vel:     { x:   0, y: 0 },
-        radius:  PLAYER_RADIUS,
+        pos: { x: 80, y: 0 },
+        vel: { x: 0, y: 0 },
+        radius: PLAYER_RADIUS,
         invMass: PLAYER_INV_MASS,
-        bCoef:   PLAYER_BCOEF,
+        bCoef: PLAYER_BCOEF,
         damping: PLAYER_DAMPING,
-        team:    "B",
+        team: "B",
         kicking: false,
-        kicked:  false,
+        kicked: false,
       },
     ],
     ball: {
-      pos:     { x: 0, y: 0 },
-      vel:     { x: 0, y: 0 },
-      radius:  BALL_RADIUS,
+      pos: { x: 0, y: 0 },
+      vel: { x: 0, y: 0 },
+      radius: BALL_RADIUS,
       invMass: BALL_INV_MASS,
-      bCoef:   BALL_BCOEF,
+      bCoef: BALL_BCOEF,
       damping: BALL_DAMPING,
     },
-    scoreA:    0,
-    scoreB:    0,
-    tick:      0,
+    scoreA: 0,
+    scoreB: 0,
+    tick: 0,
     goalEvent: null,
   };
 }
@@ -337,7 +337,7 @@ export function resetKickoff(state: HaxState, scoringTeam: "A" | "B"): HaxState 
   next.players[0].pos = { x: scoringTeam === "A" ? -80 : -100, y: 0 };
   next.players[0].vel = { x: 0, y: 0 };
   next.players[0].kicked = false;
-  next.players[1].pos = { x: scoringTeam === "B" ?  80 :  100, y: 0 };
+  next.players[1].pos = { x: scoringTeam === "B" ? 80 : 100, y: 0 };
   next.players[1].vel = { x: 0, y: 0 };
   next.players[1].kicked = false;
   next.goalEvent = null;
@@ -387,14 +387,14 @@ export function step(state: HaxState, inputs: InputMap, dt: number): HaxState {
   s.players.forEach((p, i) => {
     if (!p.kicking) { p.kicked = false; return; }
     const delta = sub(s.ball.pos, p.pos);
-    const dist  = len(delta);
+    const dist = len(delta);
     const touching = dist < p.radius + s.ball.radius + 0.5;
     if (touching && !p.kicked) {
       const aim = inputs[`p${i}`]?.move;
       const n =
         aim && len(aim) > 0.1 ? norm(aim)
-        : dist > 1e-9 ? norm(delta)
-        : { x: p.team === "A" ? 1 : -1, y: 0 };
+          : dist > 1e-9 ? norm(delta)
+            : { x: p.team === "A" ? 1 : -1, y: 0 };
       s.ball.vel = add(s.ball.vel, scale(n, PLAYER_KICK_STRENGTH));
       p.kicked = true;
     } else if (!touching) {
@@ -444,7 +444,7 @@ export function step(state: HaxState, inputs: InputMap, dt: number): HaxState {
   const goal = detectGoal(s.ball);
   if (goal !== null) {
     if (goal === "A") s.scoreA += 1;
-    else              s.scoreB += 1;
+    else s.scoreB += 1;
     s.goalEvent = goal;
     // Caller should call resetKickoff() on the next tick when goalEvent is set.
     // We do NOT auto-reset here so the caller can show a celebration frame.

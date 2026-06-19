@@ -32,6 +32,7 @@ interface Room {
   clients: Set<Client>;
   loop: ReturnType<typeof setInterval> | null;
   emptySince: number | null;
+  lastSeq: { p0: number; p1: number };
 }
 const rooms = new Map<string, Room>();
 
@@ -62,7 +63,7 @@ function startLoop(id: string, room: Room) {
     room.state = step(room.state, room.inputs, TICK_MS / 1000);
     if (room.state.goalEvent) room.state = resetKickoff(room.state, room.state.goalEvent);
     if (++tick % BROADCAST_EVERY === 0) {
-      const msg = JSON.stringify({ t: "state", s: room.state });
+      const msg = JSON.stringify({ t: "state", s: room.state, ack: room.lastSeq });
       for (const c of room.clients) if (c.ws.readyState === WebSocket.OPEN) c.ws.send(msg);
     }
   }, TICK_MS);
@@ -95,6 +96,7 @@ wss.on("connection", (ws) => {
           clients: new Set(),
           loop: null,
           emptySince: null,
+          lastSeq: { p0: 0, p1: 0 },
         };
         rooms.set(m.matchId, room);
       }
@@ -108,6 +110,9 @@ wss.on("connection", (ws) => {
 
     if (m.t === "input" && room && me) {
       room.inputs[me.slot] = normInput(m.move);
+      if (typeof m.seq === "number") {
+        room.lastSeq[me.slot] = m.seq;
+      }
     }
   });
 

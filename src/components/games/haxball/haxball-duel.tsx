@@ -15,8 +15,12 @@ import {
   GOAL_HALF,
   PLAYER_RADIUS,
   BALL_RADIUS,
+  step,
+  resetKickoff,
+  cloneState,
   type HaxState,
   type Vec2,
+  type PlayerInput,
 } from "@/lib/games/haxball/physics";
 import { GOAL_CAP } from "@/lib/games/haxball/reducer";
 
@@ -57,6 +61,11 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
   const interpMs = useRef(TICK_MS); // measured gap between the last two packets (smoothed)
   const finishedRef = useRef(false);
 
+  // Client prediction and reconciliation state
+  const predictedState = useRef<HaxState>(createInitialState());
+  const pendingInputs = useRef<{ seq: number; input: PlayerInput }[]>([]);
+  const nextInputSeq = useRef(1);
+
   // Connect to the authoritative server; render whatever it pushes.
   useEffect(() => {
     if (!playable) return;
@@ -72,7 +81,7 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
     ws.onclose = (e) => { setConnected(false); console.log("[hax] ws close", e.code, e.reason); };
     ws.onerror = (e) => { setConnected(false); console.log("[hax] ws error", e); };
     ws.onmessage = (ev) => {
-      let m: { t: string; s?: HaxState; slot?: string };
+      let m: { t: string; s?: HaxState; slot?: string; ack?: { p0: number; p1: number } };
       try { m = JSON.parse(ev.data); } catch { return; }
       if (m.t === "joined") { console.log("[hax] joined as", m.slot); return; }
       if (m.t !== "state" || !m.s) return;
@@ -87,6 +96,29 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
       snapBAt.current = now;
       if (s.scoreA !== hud.a || s.scoreB !== hud.b) setHud({ a: s.scoreA, b: s.scoreB });
 
+      // --- SERVER RECONCILIATION ---
+      const mySlot = isP1 ? "p0" : "p1";
+      const serverAck = m.ack ? m.ack[mySlot] : 0;
+      if (serverAck) {
+        // Discard inputs that have been processed by the server
+        pendingInputs.current = pendingInputs.current.filter((item) => item.seq > serverAck);
+
+        // Re-play pending inputs on top of the server state
+        let tempState = cloneState(s);
+        const oppSlot = isP1 ? "p1" : "p0";
+        for (const item of pendingInputs.current) {
+          const inputMap = {
+            [mySlot]: item.input,
+            [oppSlot]: { move: { x: 0, y: 0 }, kick: false },
+          };
+          tempState = step(tempState, inputMap, TICK_MS / 1000);
+          if (tempState.goalEvent) tempState = resetKickoff(tempState, tempState.goalEvent);
+        }
+        predictedState.current = tempState;
+      } else {
+        predictedState.current = cloneState(s);
+      }
+
       // Either client commits the finished result once (idempotent server-side).
       if (!finishedRef.current && (s.scoreA >= GOAL_CAP || s.scoreB >= GOAL_CAP)) {
         finishedRef.current = true;
@@ -97,38 +129,98 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
       }
     };
 
-    // Push input ~20Hz. Flat { x, y, kick } — server normInput reads it.
-    const send = setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ t: "input", move: inputRef.current }));
-      }
-    }, INPUT_HZ_MS);
-
-    return () => { clearInterval(send); ws.close(); };
+    return () => { ws.close(); };
     // hud read via closure; matchId/currentUserId/playable are the real deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playable, matchId, currentUserId]);
+  }, [playable, matchId, currentUserId, isP1]);
 
-  // Render loop: interpolate the two latest snapshots to 60fps.
+  // Render & Physics Loop: runs client prediction at 60Hz and draws the combined state.
   useEffect(() => {
     if (!playable) return;
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (!ctx) return;
     let raf = 0;
+
+    let lastTime = performance.now();
+    let accumulator = 0;
+
     const frame = () => {
       raf = requestAnimationFrame(frame);
+      const now = performance.now();
+      let dt = now - lastTime;
+      lastTime = now;
+
+      // Limit dt to avoid "spiral of death" during lag spikes or tab switching
+      if (dt > 250) dt = 250;
+
+      accumulator += dt;
+      while (accumulator >= TICK_MS) {
+        // 1. Capture current input
+        const currentInput = {
+          move: { x: inputRef.current.x, y: inputRef.current.y },
+          kick: inputRef.current.kick,
+        };
+
+        // 2. Assign sequence number
+        const seq = nextInputSeq.current++;
+        pendingInputs.current.push({ seq, input: currentInput });
+
+        // 3. Send input to server immediately
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({ t: "input", seq, move: currentInput }));
+        }
+
+        // 4. Simulate physics locally
+        const mySlot = isP1 ? "p0" : "p1";
+        const oppSlot = isP1 ? "p1" : "p0";
+        const inputMap = {
+          [mySlot]: currentInput,
+          [oppSlot]: { move: { x: 0, y: 0 }, kick: false },
+        };
+
+        predictedState.current = step(predictedState.current, inputMap, TICK_MS / 1000);
+        if (predictedState.current.goalEvent) {
+          predictedState.current = resetKickoff(predictedState.current, predictedState.current.goalEvent);
+        }
+
+        accumulator -= TICK_MS;
+      }
+
+      // Draw frame
       const goalSnap = snapB.current.goalEvent != null;
-      // t in [0, MAX_EXTRAP]: <1 interpolates A→B, >1 briefly coasts past B so a
-      // late packet keeps motion smooth instead of stalling. Snap on goals.
       const t = goalSnap
         ? 1
         : Math.min(MAX_EXTRAP, (performance.now() - snapBAt.current) / interpMs.current);
-      draw(ctx, lerpState(snapA.current, snapB.current, t));
+
+      const oppIndex = isP1 ? 1 : 0;
+
+      // Construct the combined renderState:
+      // - Local player: predicted position
+      // - Remote player: interpolated position between snapA and snapB
+      // - Ball: predicted position
+      const renderState: HaxState = {
+        ...predictedState.current,
+        players: predictedState.current.players.map((pb, idx) => {
+          if (idx === oppIndex) {
+            const posA = snapA.current.players[idx]?.pos ?? pb.pos;
+            const posB = snapB.current.players[idx]?.pos ?? pb.pos;
+            return {
+              ...pb,
+              pos: lerpVec(posA, posB, t),
+            };
+          }
+          return pb;
+        }),
+        ball: predictedState.current.ball,
+      };
+
+      draw(ctx, renderState);
     };
+
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [playable]);
+  }, [playable, isP1]);
 
   function respond(accept: boolean) {
     if (isPending) return;
