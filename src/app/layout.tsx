@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Anton, Teko } from "next/font/google";
+import { Geist, Geist_Mono, Anton, Teko, Noto_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -28,6 +28,13 @@ const teko = Teko({
   variable: "--font-numeric",
   weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
+});
+
+// Arabic body copy in Franco-Arabic recaps (paired with Geist for Latin runs).
+const notoArabic = Noto_Sans_Arabic({
+  variable: "--font-arabic",
+  subsets: ["arabic"],
+  weight: ["400", "500", "600"],
 });
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL
@@ -113,7 +120,7 @@ export default function RootLayout({
         <link rel="apple-touch-startup-image" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/splash/ipad-pro-12.png" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${anton.variable} ${teko.variable} min-h-dvh antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${anton.variable} ${teko.variable} ${notoArabic.variable} min-h-dvh antialiased`}
       >
         {children}
         <Toaster richColors position="top-center" />

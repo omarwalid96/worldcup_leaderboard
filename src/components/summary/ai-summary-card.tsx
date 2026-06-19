@@ -11,6 +11,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import type { AiSummary } from "@/lib/summary/queries";
+import { RecapBody } from "@/components/summary/recap-body";
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -50,10 +51,14 @@ export function AiSummaryCard({ summary }: { summary: AiSummary | null }) {
           <span className="text-[11px] text-muted-foreground/70">updated {ago}</span>
         )}
       </CardHeader>
-      <CardContent className="space-y-2">
-        <p className="line-clamp-5 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
-          {summary.body}
-        </p>
+      <CardContent className="space-y-2.5">
+        <div className="relative max-h-[8.75rem] overflow-hidden">
+          <RecapBody body={summary.body} compact />
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-card/95 to-transparent"
+            aria-hidden
+          />
+        </div>
         <Dialog>
           <DialogTrigger asChild>
             <button
@@ -70,9 +75,7 @@ export function AiSummaryCard({ summary }: { summary: AiSummary | null }) {
                 <Sparkles className="size-4 text-gold" /> AI Summary
               </DialogTitle>
             </DialogHeader>
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
-              {summary.body}
-            </p>
+            <RecapBody body={summary.body} />
             {ago && (
               <p className="text-[11px] text-muted-foreground/70">Updated {ago}</p>
             )}

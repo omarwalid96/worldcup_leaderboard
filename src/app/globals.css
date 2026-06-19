@@ -16,6 +16,7 @@
   --font-body: var(--font-body);
   --font-display: var(--font-display);
   --font-numeric: var(--font-numeric);
+  --font-arabic: var(--font-arabic);
   --font-mono: var(--font-geist-mono);
   /* font-heading stays on the body font — it titles UI surfaces (cards, dialogs).
      Reserve --font-display for hero headlines + big numerals via .font-display. */
