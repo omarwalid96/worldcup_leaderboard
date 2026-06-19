@@ -1,24 +1,26 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { CalendarDays, Trophy, Target, ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { MatchCard } from "@/components/match/match-card";
 import { LeagueLeaders } from "@/components/leaderboard/league-leaders";
 import { SponsorsGallery } from "@/components/sponsors/sponsors-gallery";
+import { AiSummaryCard } from "@/components/summary/ai-summary-card";
 import { requireProfile } from "@/lib/auth/session";
 import { getPredictableMatches } from "@/lib/matches/queries";
 import { getMainLeagueLeaders } from "@/lib/leaderboard/queries";
 import { listSponsors } from "@/lib/sponsors/actions";
+import { getLatestSummary } from "@/lib/summary/queries";
 
 export const metadata: Metadata = { title: "Home" };
 
 export default async function DashboardPage() {
   const profile = await requireProfile();
-  const [openNow, leaders, sponsors] = await Promise.all([
+  const [openNow, leaders, sponsors, summary] = await Promise.all([
     getPredictableMatches(profile.id),
     getMainLeagueLeaders(),
     listSponsors(),
+    getLatestSummary(),
   ]);
 
   return (
@@ -31,45 +33,38 @@ export default async function DashboardPage() {
       {/* Current league leader(s) — crowned */}
       {leaders && <LeagueLeaders data={leaders} />}
 
-      {/* Quick actions — these light up as later milestones land */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Card className="border-border/60 bg-card/70">
-          <CardHeader className="flex-row items-center gap-3 space-y-0">
-            <span className="grid size-10 place-items-center rounded-xl bg-primary/15 text-primary">
-              <Target className="size-5" />
-            </span>
-            <CardTitle className="text-base">ازني يا دولي</CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Predict upcoming scorelines before kickoff.
-            </p>
-            <Button asChild size="sm" variant="secondary" className="group shrink-0">
-              <Link href="/matches">
-                Open <ArrowRight className="transition-transform group-hover:translate-x-0.5" />
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+      {/* AI Summary — the latest /recap, published to all users. Under Leaders. */}
+      <AiSummaryCard summary={summary} />
 
-        <Card className="border-border/60 bg-card/70">
-          <CardHeader className="flex-row items-center gap-3 space-y-0">
-            <span className="grid size-10 place-items-center rounded-xl bg-gold/15 text-gold">
-              <Trophy className="size-5" />
-            </span>
-            <CardTitle className="text-base">The table</CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              See where you stand in the league.
-            </p>
-            <Button asChild size="sm" variant="secondary" className="group shrink-0">
-              <Link href="/leaderboard">
-                View <ArrowRight className="transition-transform group-hover:translate-x-0.5" />
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+      {/* Quick actions — compact: icon beside the words, single tidy row each. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Link
+          href="/matches"
+          className="group flex items-center gap-3 rounded-xl border border-border/60 bg-card/70 px-3 py-2.5 transition-colors hover:border-primary/40"
+        >
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/15 text-primary">
+            <Target className="size-4" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold leading-tight">ازني يا دولي</p>
+            <p className="truncate text-xs text-muted-foreground">Predict before kickoff</p>
+          </div>
+          <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+        </Link>
+
+        <Link
+          href="/leaderboard"
+          className="group flex items-center gap-3 rounded-xl border border-border/60 bg-card/70 px-3 py-2.5 transition-colors hover:border-gold/40"
+        >
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-gold/15 text-gold">
+            <Trophy className="size-4" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold leading-tight">The table</p>
+            <p className="truncate text-xs text-muted-foreground">See where you stand</p>
+          </div>
+          <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+        </Link>
       </div>
 
       {/* Open to predict now — within 24h of kickoff */}

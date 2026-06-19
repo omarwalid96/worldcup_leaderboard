@@ -164,11 +164,20 @@ DB / admin scripts (all load `.env.local`): see "Scripts" below.
 - `src/components/{match,leaderboard,leagues,profile,avatar,layout,
   notifications,ui}`.
 - `drizzle/*.sql` — migrations: `0000` schema, `0001` RLS + auth trigger +
-  cross-schema FK, then feature migrations through `0009` (business card, quote).
-  NOTE: filenames are applied **lexically** by `scripts/migrate.ts` (not
-  drizzle-kit), and there are duplicate `0006_*` names (harmless — order within a
-  number doesn't matter here). Each is idempotent (`IF NOT EXISTS` / guarded).
-  RLS lives only in SQL, never in `schema.ts`.
+  cross-schema FK, then feature migrations through `0012` (business card, quote,
+  games `0010`, sponsors `0011`, ai_summaries `0012`). NOTE: filenames are applied
+  **lexically** by `scripts/migrate.ts` (not drizzle-kit), and there are duplicate
+  `0006_*` names (harmless — order within a number doesn't matter here). Each is
+  idempotent (`IF NOT EXISTS` / guarded). RLS lives only in SQL, never in `schema.ts`.
+
+## AI Summary recap (`/recap` skill → home card)
+- The home "AI Summary" card (`src/components/summary/ai-summary-card.tsx`, under
+  League Leaders) shows the latest row of the `ai_summaries` table. There is NO
+  app-side LLM call / API key — recaps are written by the **Claude Code `/recap`
+  skill** (`.claude/skills/recap/`): `gather.mjs` (READ-ONLY data snapshot) → Claude
+  writes a funny Egyptian-banter recap → `publish.mjs` inserts one `ai_summaries`
+  row. Read `.claude/skills/recap/USAGE.md`. The skill is read-only except that one
+  insert; it never touches predictions/standings/matches.
 
 ## Profiles: DB-only fields + badges
 - `profiles.business_card_url` (nullable) — a per-user business-card image, shown

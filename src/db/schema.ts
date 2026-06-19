@@ -226,6 +226,19 @@ export const sponsors = pgTable("sponsors", {
     .defaultNow(),
 });
 
+/**
+ * AI-generated league recaps shown on the home "AI Summary" card. Written by the
+ * /recap Claude Code skill (gather → write → publish). The card shows the most
+ * recent row; older rows are retained as history.
+ */
+export const aiSummaries = pgTable("ai_summaries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 /** Per-user rank snapshot per matchday per league, for the rank-over-time chart. */
 export const rankHistory = pgTable(
   "rank_history",
