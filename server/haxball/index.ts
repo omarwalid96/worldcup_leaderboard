@@ -21,7 +21,7 @@ import {
 } from "../../src/lib/games/haxball/physics.ts";
 
 const PORT = Number(process.env.PORT ?? 8080);
-const BROADCAST_EVERY = 3; // ~20Hz state push, sim still ticks 60Hz
+const BROADCAST_EVERY = 1; // push every tick = 60Hz (1v1 bandwidth is trivial)
 const EMPTY_ROOM_TTL = 30_000; // drop a room 30s after the last client leaves
 const sql = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 4 });
 
@@ -35,13 +35,12 @@ interface Room {
 }
 const rooms = new Map<string, Room>();
 
-/** Trust boundary: never feed raw client JSON into step(). Coerce to a sane,
- *  clamped {move:{x,y in [-1,1]}, kick:bool}; garbage becomes a no-op input. */
+/** Trust boundary: never feed raw client JSON into step(). Client sends a flat
+ *  { x, y, kick }; coerce+clamp to { move:{x,y in [-1,1]}, kick:bool }; garbage → no-op. */
 function normInput(raw: unknown): InputMap[string] {
   const o = (raw ?? {}) as Record<string, unknown>;
-  const mv = (o.move ?? {}) as Record<string, unknown>;
   const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0);
-  return { move: { x: num(mv.x), y: num(mv.y) }, kick: o.kick === true };
+  return { move: { x: num(o.x), y: num(o.y) }, kick: o.kick === true };
 }
 
 /** matchId → its two player ids (cached; the row is immutable for our purposes). */

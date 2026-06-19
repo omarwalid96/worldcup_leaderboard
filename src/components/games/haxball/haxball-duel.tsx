@@ -21,8 +21,8 @@ import {
 import { GOAL_CAP } from "@/lib/games/haxball/reducer";
 
 const SERVER_URL = process.env.NEXT_PUBLIC_HAXBALL_WS; // wss://haxball-eznii.fly.dev
-const INPUT_HZ_MS = 50; // send input ~20Hz when it changes
-const INTERP_MS = TICK_MS * 4; // smooth the ~20Hz state stream to 60fps render
+const INPUT_HZ_MS = 33; // send input ~30Hz
+const INTERP_MS = TICK_MS * 2; // small buffer to ride packet jitter at 60Hz server push
 
 /**
  * Real-time 1v1 HaxBall. A dedicated WS server (server/haxball) runs the
@@ -64,13 +64,15 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
 
     ws.onopen = () => {
       setConnected(true);
+      console.log("[hax] ws open → join", { matchId, userId: currentUserId });
       ws.send(JSON.stringify({ t: "join", matchId, userId: currentUserId }));
     };
-    ws.onclose = () => setConnected(false);
-    ws.onerror = () => setConnected(false);
+    ws.onclose = (e) => { setConnected(false); console.log("[hax] ws close", e.code, e.reason); };
+    ws.onerror = (e) => { setConnected(false); console.log("[hax] ws error", e); };
     ws.onmessage = (ev) => {
-      let m: { t: string; s?: HaxState };
+      let m: { t: string; s?: HaxState; slot?: string };
       try { m = JSON.parse(ev.data); } catch { return; }
+      if (m.t === "joined") { console.log("[hax] joined as", m.slot); return; }
       if (m.t !== "state" || !m.s) return;
       const s = m.s;
       snapA.current = snapB.current;
@@ -88,7 +90,7 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
       }
     };
 
-    // Push input ~20Hz (only meaningful while moving/kicking, but cheap regardless).
+    // Push input ~20Hz. Flat { x, y, kick } — server normInput reads it.
     const send = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ t: "input", move: inputRef.current }));
@@ -175,18 +177,26 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
     );
   }
 
-  // Live match.
+  // Live match. P1 = team A = red, P2 = team B = blue.
   const myScore = isP1 ? hud.a : hud.b;
   const oppScore = isP1 ? hud.b : hud.a;
+  const myColor = isP1 ? "#e2483d" : "#3d6de2";
+  const oppColor = isP1 ? "#3d6de2" : "#e2483d";
+  const Dot = ({ c }: { c: string }) => (
+    <span className="inline-block size-2.5 rounded-full align-middle" style={{ backgroundColor: c }} />
+  );
   return (
     <div className="flex flex-col items-center gap-3 select-none">
       <div className="flex w-full max-w-md items-center justify-between text-sm">
-        <span className="font-medium">{me?.displayName ?? "You"} <b className="text-gold">{myScore}</b></span>
+        <span className="font-medium"><Dot c={myColor} /> {me?.displayName ?? "You"} <b className="text-gold">{myScore}</b></span>
         <span className="text-[11px] text-muted-foreground/70">
           first to {GOAL_CAP}{connected ? "" : " · connecting…"}
         </span>
-        <span className="font-medium"><b className="text-gold">{oppScore}</b> {opp?.displayName ?? "Opp"}</span>
+        <span className="font-medium"><b className="text-gold">{oppScore}</b> {opp?.displayName ?? "Opp"} <Dot c={oppColor} /></span>
       </div>
+      <p className="text-[11px] text-muted-foreground">
+        You are the <b style={{ color: myColor }}>{isP1 ? "red" : "blue"}</b> player
+      </p>
 
       <canvas
         ref={canvasRef}

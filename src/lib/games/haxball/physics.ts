@@ -174,6 +174,16 @@ const WALL_SEGMENTS: Segment[] = [
   { a: { x:  HALF_W, y:  GOAL_HALF }, b: { x: HALF_W, y: HALF_H },   normal: { x: -1, y:  0 }, bCoef: WALL_BCOEF },
 ];
 
+// Players are blocked from the goal mouths (only the ball may enter). Same walls
+// as the ball plus a solid segment closing each goal gap.
+const PLAYER_WALL_SEGMENTS: Segment[] = [
+  ...WALL_SEGMENTS,
+  // Left goal mouth — solid for players
+  { a: { x: -HALF_W, y: -GOAL_HALF }, b: { x: -HALF_W, y: GOAL_HALF }, normal: { x:  1, y: 0 }, bCoef: WALL_BCOEF },
+  // Right goal mouth — solid for players
+  { a: { x:  HALF_W, y: -GOAL_HALF }, b: { x:  HALF_W, y: GOAL_HALF }, normal: { x: -1, y: 0 }, bCoef: WALL_BCOEF },
+];
+
 /**
  * Closest point on segment [a,b] to point p.
  * Returns the point and the parameter t in [0,1].
@@ -368,6 +378,28 @@ export function step(state: HaxState, inputs: InputMap, dt: number): HaxState {
     p.vel = add(p.vel, scale(dir, accel * dt * 60));
   });
 
+  // ── 1b. Kick impulse — set BEFORE integration so the kicked ball actually
+  //    travels this tick. Fire once per contact window (kicked flag). Kick goes
+  //    toward the player's aim (joystick) so you can clear a corner; falls back
+  //    to away-from-player, then toward the opponent goal. ──
+  s.players.forEach((p, i) => {
+    if (!p.kicking) { p.kicked = false; return; }
+    const delta = sub(s.ball.pos, p.pos);
+    const dist  = len(delta);
+    const touching = dist < p.radius + s.ball.radius + 0.5;
+    if (touching && !p.kicked) {
+      const aim = inputs[`p${i}`]?.move;
+      const n =
+        aim && len(aim) > 0.1 ? norm(aim)
+        : dist > 1e-9 ? norm(delta)
+        : { x: p.team === "A" ? 1 : -1, y: 0 };
+      s.ball.vel = add(s.ball.vel, scale(n, PLAYER_KICK_STRENGTH));
+      p.kicked = true;
+    } else if (!touching) {
+      p.kicked = false;
+    }
+  });
+
   // ── 2. Integrate velocity + apply damping ─────────────────────────────────
   const allDiscs: Disc[] = [...s.players, s.ball];
 
@@ -390,37 +422,16 @@ export function step(state: HaxState, inputs: InputMap, dt: number): HaxState {
   resolveDiscDisc(s.players[1], s.ball);
   resolveDiscDisc(s.players[0], s.players[1]);
 
-  // ── 4. Kick impulse ───────────────────────────────────────────────────────
-  // Fire once per contact window: when kick=true AND player touches ball AND
-  // hasn't already fired this contact (kicked=false).
-  // Mirrors HaxBall's kick-fires-on-contact-while-held model.
-  s.players.forEach(p => {
-    if (!p.kicking) {
-      p.kicked = false; // reset so next contact can kick
-      return;
-    }
-
-    const delta = sub(s.ball.pos, p.pos);
-    const dist  = len(delta);
-    const touching = dist < p.radius + s.ball.radius + 0.5; // small epsilon for touch detection
-
-    if (touching && !p.kicked) {
-      const n = dist > 1e-9 ? norm(delta) : { x: p.team === "A" ? 1 : -1, y: 0 };
-      s.ball.vel = add(s.ball.vel, scale(n, PLAYER_KICK_STRENGTH));
-      p.kicked = true;
-    } else if (!touching) {
-      p.kicked = false; // left contact range, ready to kick again on re-entry
-    }
-  });
-
-  // ── 5. Wall collisions ────────────────────────────────────────────────────
+  // ── 4. Wall collisions ────────────────────────────────────────────────────
+  // Players hit solid end walls (goal mouths closed); only the ball may enter a goal.
+  for (const seg of PLAYER_WALL_SEGMENTS) {
+    for (const p of s.players) resolveDiscWall(p, seg);
+  }
   for (const seg of WALL_SEGMENTS) {
-    for (const d of allDiscs) {
-      resolveDiscWall(d, seg);
-    }
+    resolveDiscWall(s.ball, seg);
   }
 
-  // ── 6. Goal detection ─────────────────────────────────────────────────────
+  // ── 5. Goal detection ─────────────────────────────────────────────────────
   const goal = detectGoal(s.ball);
   if (goal !== null) {
     if (goal === "A") s.scoreA += 1;
@@ -537,6 +548,39 @@ function demo(): void {
     assert(
       s.goalEvent === null,
       "Ball past goal line but outside goal height does not score"
+    );
+  }
+
+  // ── Test 7: Player cannot enter the goal mouth (solid end wall for players) ──
+  {
+    let s = createInitialState();
+    // Drive player 0 hard toward the right goal mouth (y centred, in goal-gap band)
+    s.players[0].pos = { x: HALF_W - 30, y: 0 };
+    const inputs: InputMap = { p0: { move: { x: 1, y: 0 }, kick: false } };
+    for (let i = 0; i < 120; i++) s = step(s, inputs, DT);
+    assert(
+      s.players[0].pos.x <= HALF_W - PLAYER_RADIUS + 0.5,
+      `Player blocked at goal line, can't enter goal (pos.x=${s.players[0].pos.x.toFixed(2)}, wall=${(HALF_W - PLAYER_RADIUS).toFixed(2)})`
+    );
+  }
+
+  // ── Test 8: Kick frees a ball pinned in a corner (kick after walls) ─────────
+  {
+    let s = createInitialState();
+    // Ball jammed in top-right corner; player on the goal side, kicking it left
+    // along the top wall (away from the corner — how you'd actually free it).
+    s.ball.pos = { x: HALF_W - BALL_RADIUS, y: -(HALF_H - BALL_RADIUS) };
+    s.ball.vel = { x: 0, y: 0 };
+    const touchD = (PLAYER_RADIUS + BALL_RADIUS) * 0.7;
+    s.players[0].pos = { x: s.ball.pos.x + touchD, y: s.ball.pos.y };
+    const before = { ...s.ball.pos };
+    s = step(s, { p0: { move: { x: -1, y: 0 }, kick: true } }, DT); // kick left
+    s.players[0].pos = { x: 100, y: 0 }; // player moves off (no longer blocking)
+    for (let i = 0; i < 25; i++) s = step(s, {}, DT);
+    const moved = len(sub(s.ball.pos, before));
+    assert(
+      moved > BALL_RADIUS && s.ball.pos.x < before.x,
+      `Kicked ball leaves the corner (moved ${moved.toFixed(2)}px, now x=${s.ball.pos.x.toFixed(1)})`
     );
   }
 
