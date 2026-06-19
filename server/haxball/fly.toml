@@ -1,0 +1,20 @@
+# Fly config for the HaxBall realtime server. Build from REPO ROOT so the
+# Dockerfile can copy the shared physics file:
+#   fly launch --no-deploy   (first time, from repo root, pointing at this config)
+#   fly secrets set DATABASE_URL=...   (the pooler URL from .env.local)
+#   fly deploy --config server/haxball/fly.toml --dockerfile server/haxball/Dockerfile
+app = "haxball-eznii"
+primary_region = "cdg"
+
+[build]
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "suspend"   # idle → suspend (free-friendly); wakes on connect
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

@@ -227,15 +227,20 @@ function resolveDiscDisc(a: Disc, b: Disc): void {
  * Wall has infinite mass (invMass = 0 effectively).
  */
 function resolveDiscWall(d: Disc, seg: Segment): void {
-  const { pt } = closestPointOnSegment(d.pos, seg.a, seg.b);
+  const { pt, t } = closestPointOnSegment(d.pos, seg.a, seg.b);
   const delta = sub(d.pos, pt);
   const dist  = len(delta);
   if (dist >= d.radius || dist < 1e-9) return;
 
-  // Use the segment's precomputed inward normal for stability
-  const n = seg.normal;
+  // At a corner the closest point is a segment endpoint (t≈0 or t≈1). Using the
+  // segment's axis normal there pushes the disc along one axis only, trapping it
+  // against the adjacent wall (ball sticks in corners with WALL_BCOEF=0). Use the
+  // true vertex→disc direction instead so the disc is shoved out diagonally.
+  const atCorner = t < 1e-6 || t > 1 - 1e-6;
+  const n = atCorner ? norm(delta) : seg.normal;
+  if (len(n) < 1e-9) return;
 
-  // Positional correction — push disc out
+  // Positional correction — push disc out along the contact normal
   const overlap = d.radius - dist;
   d.pos = add(d.pos, scale(n, overlap));
 

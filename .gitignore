@@ -46,3 +46,4 @@ gs-verify.local.mjs
 
 # local DB backups
 /backups
+server/haxball/node_modules/
