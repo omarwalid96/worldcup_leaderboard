@@ -21,11 +21,13 @@ export interface PredictionHistoryRow {
 
 /**
  * Full prediction history for a user, most-recent first.
- * Joins predictions → matches. Only locked predictions are returned
- * (once kickoff has passed the pick is public).
+ * Joins predictions → matches. When viewed by someone else, scorelines for
+ * matches not yet live/finished are redacted (-1) so upcoming picks stay
+ * secret until kickoff. Own profile always shows everything.
  */
 export async function getUserPredictionHistory(
   userId: string,
+  viewerId?: string,
 ): Promise<PredictionHistoryRow[]> {
   const rows = await db
     .select({
@@ -48,6 +50,13 @@ export async function getUserPredictionHistory(
     .where(eq(predictions.userId, userId))
     .orderBy(desc(matches.kickoffUtc));
 
+  if (viewerId && viewerId !== userId) {
+    return rows.map((r) =>
+      r.status === "live" || r.status === "finished"
+        ? r
+        : { ...r, homePick: -1, awayPick: -1 },
+    );
+  }
   return rows;
 }
 

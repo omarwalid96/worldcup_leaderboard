@@ -10,5 +10,5 @@ import { getMatchPredictions, type FriendPick } from "./queries";
 export async function fetchMatchPicks(matchId: string): Promise<FriendPick[]> {
   const user = await getCurrentUser();
   if (!user) return [];
-  return getMatchPredictions(matchId);
+  return getMatchPredictions(matchId, user.id);
 }

@@ -72,13 +72,16 @@ export interface FriendPick {
 }
 
 /**
- * All members' predictions for a match (picks are always visible in this
- * league). Ordered by points desc once graded, else by who picked first.
+ * All members' predictions for a match. WHO picked is always visible; the
+ * scoreline of OTHER users is redacted (-1) until the match is live/finished,
+ * so upcoming picks stay secret. The viewer's own pick is always shown.
+ * Ordered by points desc once graded, else by who picked first.
  */
 export async function getMatchPredictions(
   matchId: string,
+  viewerId?: string,
 ): Promise<FriendPick[]> {
-  return db
+  const rows = await db
     .select({
       userId: predictions.userId,
       username: profiles.username,
@@ -88,9 +91,16 @@ export async function getMatchPredictions(
       awayPick: predictions.awayPick,
       isDoubleDown: predictions.isDoubleDown,
       pointsAwarded: predictions.pointsAwarded,
+      status: matches.status,
     })
     .from(predictions)
     .innerJoin(profiles, eq(profiles.id, predictions.userId))
+    .innerJoin(matches, eq(matches.id, predictions.matchId))
     .where(eq(predictions.matchId, matchId))
     .orderBy(desc(predictions.pointsAwarded), predictions.createdAt);
+
+  return rows.map(({ status, ...p }) => {
+    const reveal = status === "live" || status === "finished" || p.userId === viewerId;
+    return reveal ? p : { ...p, homePick: -1, awayPick: -1 };
+  });
 }

@@ -217,7 +217,13 @@ export function PredictionHistory({
                 <Zap className="size-3.5 shrink-0 text-gold" aria-label="Double down" />
               )} */}
               <span className="font-numeric text-base tabular-nums">
-                {row.homePick}–{row.awayPick}
+                {row.homePick < 0 ? (
+                  <span className="text-muted-foreground/60" title="Hidden until kickoff">
+                    ·–·
+                  </span>
+                ) : (
+                  `${row.homePick}–${row.awayPick}`
+                )}
               </span>
             </div>
 

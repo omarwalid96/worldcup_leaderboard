@@ -90,7 +90,13 @@ export function FriendsPicks({
               {/* Double-down disabled for now (kept for future use):
               {p.isDoubleDown && <Zap className="size-3.5 text-gold" aria-label="Double down" />} */}
               <span className="font-numeric text-xl tabular-nums">
-                {p.homePick}–{p.awayPick}
+                {p.homePick < 0 ? (
+                  <span className="text-muted-foreground/60" title="Hidden until kickoff">
+                    ·–·
+                  </span>
+                ) : (
+                  `${p.homePick}–${p.awayPick}`
+                )}
               </span>
               {graded && p.pointsAwarded != null ? (
                 <span

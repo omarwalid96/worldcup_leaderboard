@@ -66,7 +66,7 @@ export default async function UserProfilePage({
     earnedBadges,
   ] = await Promise.all([
     getProfileStats(profile.id),
-    getUserPredictionHistory(profile.id),
+    getUserPredictionHistory(profile.id, sessionProfile?.id),
     getPointsHistory(profile.id),
     getOutcomeBreakdown(profile.id),
     getRankHistory(profile.id),

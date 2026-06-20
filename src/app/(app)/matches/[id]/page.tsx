@@ -32,7 +32,7 @@ export default async function PredictPage({
   const profile = await requireProfile();
   const [data, friendsPicks] = await Promise.all([
     getMatchForPrediction(id, profile.id),
-    getMatchPredictions(id),
+    getMatchPredictions(id, profile.id),
   ]);
   if (!data) notFound();
 
