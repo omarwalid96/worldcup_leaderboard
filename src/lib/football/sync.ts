@@ -36,9 +36,12 @@ export async function syncMatches(): Promise<SyncSummary> {
       status: matches.status,
       homeScore: matches.homeScore,
       awayScore: matches.awayScore,
+      kickoffUtc: matches.kickoffUtc,
     })
     .from(matches);
   const byExt = new Map(existing.map((m) => [m.externalId, m]));
+
+  let kickoffsUpdated = 0;
 
   for (const f of fixtures) {
     const cur = byExt.get(f.externalId);
@@ -51,20 +54,34 @@ export async function syncMatches(): Promise<SyncSummary> {
       f.homeScore !== cur.homeScore || f.awayScore !== cur.awayScore;
     const statusChanged = f.status !== cur.status;
 
-    if (scoreChanged || statusChanged) {
+    // Sync kickoff reschedules (source can move a match earlier/later). Only
+    // while still scheduled — never shift a live/finished match, which would
+    // re-open picks or corrupt the lock. A stale kickoff is what let users
+    // submit after a match moved earlier (Brazil v Haiti). lockKickedOffPredictions
+    // below uses the refreshed time, so a now-passed kickoff locks this same run.
+    const newKickoff = new Date(f.kickoffUtc);
+    const kickoffChanged =
+      cur.status === "scheduled" &&
+      !Number.isNaN(newKickoff.getTime()) &&
+      newKickoff.getTime() !== new Date(cur.kickoffUtc).getTime();
+
+    if (scoreChanged || statusChanged || kickoffChanged) {
       await db
         .update(matches)
         .set({
           homeScore: f.homeScore,
           awayScore: f.awayScore,
           status: f.status,
+          ...(kickoffChanged ? { kickoffUtc: newKickoff } : {}),
           lastSyncedAt: new Date(),
         })
         .where(eq(matches.id, cur.id));
       if (scoreChanged) scoresUpdated++;
       if (statusChanged) statusChanges++;
+      if (kickoffChanged) kickoffsUpdated++;
     }
   }
+  void kickoffsUpdated; // ponytail: counted for parity; not surfaced in summary
 
   const lockedNow = await lockKickedOffPredictions();
 
