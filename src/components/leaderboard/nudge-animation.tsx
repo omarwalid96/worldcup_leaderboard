@@ -1,17 +1,21 @@
 "use client";
 
 import { useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import confetti from "canvas-confetti";
 import { haptic } from "@/lib/celebrate";
 
+/** Total time the whack theatre is on screen (ms). Shared with the parent so
+ *  the row "sink" and the overlay stay in sync. */
+export const NUDGE_DURATION_MS = 4000;
+
+const D = NUDGE_DURATION_MS / 1000; // seconds
+
 /**
  * Full-screen "you got whacked" overlay. A cartoon hammer swings in and slams
- * the screen, a bomb burst + dark smoke puff fills it for ~2s, then it clears.
- * Motion (already used everywhere) + canvas-confetti — no anime.js, no assets.
- *
- * The actual leaderboard shake is driven by the parent toggling a CSS class;
- * this component owns the overlay theatre and calls onDone after ~2s.
+ * the screen (twice), a dark bomb burst + smoke puff fills it, the banner holds,
+ * then it clears after NUDGE_DURATION_MS. Motion + canvas-confetti — no anime.js,
+ * no assets. The leaderboard shake + row-sink are driven by the parent.
  */
 export function NudgeAnimation({
   fromName,
@@ -25,70 +29,83 @@ export function NudgeAnimation({
       typeof window !== "undefined" &&
       window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
-    haptic([20, 60, 120]); // thwack
+    haptic([20, 60, 120, 60, 120]); // thwack-thwack
 
-    // Dark "explosion" burst at impact (~when the hammer lands, 400ms in).
-    const burst = reduced
-      ? null
-      : setTimeout(() => {
+    const smoke = ["#3a3a3a", "#555", "#222", "#777"];
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    if (!reduced) {
+      // Two bursts: first at impact, second on the rebound bop.
+      timers.push(
+        setTimeout(() => {
           confetti({
-            particleCount: 120,
-            spread: 180,
-            startVelocity: 45,
-            gravity: 1.4,
-            scalar: 1.2,
+            particleCount: 140,
+            spread: 200,
+            startVelocity: 50,
+            gravity: 1.3,
+            scalar: 1.3,
             origin: { y: 0.45 },
-            colors: ["#3a3a3a", "#555", "#222", "#777"],
+            colors: smoke,
           });
-        }, 380);
+        }, 500),
+        setTimeout(() => {
+          confetti({
+            particleCount: 80,
+            spread: 160,
+            startVelocity: 35,
+            gravity: 1.5,
+            scalar: 1.1,
+            origin: { y: 0.5 },
+            colors: smoke,
+          });
+        }, 1300),
+      );
+    }
 
-    const done = setTimeout(onDone, 2000);
+    const done = setTimeout(onDone, NUDGE_DURATION_MS);
     return () => {
-      if (burst) clearTimeout(burst);
+      timers.forEach(clearTimeout);
       clearTimeout(done);
     };
   }, [onDone]);
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[100] overflow-hidden">
-      {/* Hammer swings in from top-right and slams down to center. */}
+      {/* Hammer swings in, slams, rebounds, slams again, then lifts away. */}
       <motion.div
         className="absolute right-1/4 top-0 origin-bottom-right text-[120px] leading-none drop-shadow-2xl"
-        initial={{ rotate: -120, x: 200, y: -120, opacity: 0 }}
+        initial={{ rotate: -120, x: 200, y: -160, opacity: 0 }}
         animate={{
-          rotate: [-120, 25, 0, 25],
-          x: [200, 0, 0, 0],
-          y: [-120, 0, 0, 0],
-          opacity: [0, 1, 1, 1],
+          rotate: [-120, 20, -40, 15, -40, 110],
+          x: [200, 0, 0, 0, 0, 120],
+          y: [-160, 0, -40, 0, -40, -200],
+          opacity: [0, 1, 1, 1, 1, 0],
         }}
-        transition={{ duration: 0.6, times: [0, 0.55, 0.7, 1], ease: "easeIn" }}
+        transition={{ duration: D, times: [0, 0.13, 0.25, 0.34, 0.46, 1], ease: "easeInOut" }}
         aria-hidden
       >
         🔨
       </motion.div>
 
-      {/* Smoke puff: grows and fades over the 2s. */}
-      <AnimatePresence>
-        <motion.div
-          className="absolute inset-0 grid place-items-center"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: [0, 0.9, 0.9, 0] }}
-          transition={{ duration: 1.6, delay: 0.4, times: [0, 0.15, 0.7, 1] }}
-          aria-hidden
-        >
-          <span className="select-none text-[260px] leading-none">💨</span>
-        </motion.div>
-      </AnimatePresence>
-
-      {/* "Nudged by …" banner. */}
+      {/* Smoke puff: billows and lingers most of the duration. */}
       <motion.div
-        className="absolute inset-x-0 top-1/3 flex justify-center"
-        initial={{ scale: 0.5, opacity: 0 }}
-        animate={{ scale: [0.5, 1.2, 1, 1], opacity: [0, 1, 1, 0] }}
-        transition={{ duration: 1.8, delay: 0.45, times: [0, 0.2, 0.4, 1] }}
+        className="absolute inset-0 grid place-items-center"
+        initial={{ opacity: 0, scale: 0.6 }}
+        animate={{ opacity: [0, 0.95, 0.95, 0], scale: [0.6, 1.1, 1.2, 1.3] }}
+        transition={{ duration: D, delay: 0, times: [0, 0.18, 0.7, 1] }}
         aria-hidden
       >
-        <span className="rounded-2xl bg-background/80 px-5 py-3 font-display text-2xl font-bold text-gold shadow-2xl backdrop-blur">
+        <span className="select-none text-[280px] leading-none">💨</span>
+      </motion.div>
+
+      {/* "… whacked you!" banner — pops, holds, fades. */}
+      <motion.div
+        className="absolute inset-x-0 top-1/3 flex justify-center px-4"
+        initial={{ scale: 0.5, opacity: 0 }}
+        animate={{ scale: [0.5, 1.25, 1, 1, 0.9], opacity: [0, 1, 1, 1, 0] }}
+        transition={{ duration: D, delay: 0.4, times: [0, 0.12, 0.2, 0.8, 1] }}
+        aria-hidden
+      >
+        <span className="rounded-2xl bg-background/80 px-5 py-3 text-center font-display text-2xl font-bold text-gold shadow-2xl backdrop-blur">
           💥 {fromName} whacked you!
         </span>
       </motion.div>

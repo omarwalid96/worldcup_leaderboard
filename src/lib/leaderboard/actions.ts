@@ -22,19 +22,25 @@ export interface NudgePayload {
   toUserId: string;
 }
 
-const NUDGE_WINDOW_MS = 60 * 60 * 1000; // one nudge per hour per sender
+const NUDGE_WINDOW_MS = 3 * 60 * 1000; // one nudge per 3 minutes per sender
+
+export type NudgeResult =
+  | { ok: true; payload: NudgePayload }
+  | { ok: false; reason: string };
 
 /**
  * Send a nudge: rate-limit (one/hour/sender, server-enforced), persist it (so
  * the target replays on next open), push-notify, and return the payload for the
- * client to broadcast. Throws a friendly message if rate-limited or invalid.
+ * client to broadcast. Returns {ok:false, reason} for expected failures
+ * (rate-limited / not a member) — we never throw, so a blocked nudge is normal
+ * control flow, not a Server Components render error.
  */
 export async function sendNudge(
   leagueId: string,
   toUserId: string,
-): Promise<NudgePayload> {
+): Promise<NudgeResult> {
   const me = await requireProfile();
-  if (toUserId === me.id) throw new Error("You can't nudge yourself.");
+  if (toUserId === me.id) return { ok: false, reason: "You can't nudge yourself." };
 
   // Both must belong to the league (cheap guard; the table is league-scoped).
   const members = await db
@@ -43,7 +49,7 @@ export async function sendNudge(
     .where(eq(leagueMembers.leagueId, leagueId));
   const ids = new Set(members.map((m) => m.userId));
   if (!ids.has(me.id) || !ids.has(toUserId)) {
-    throw new Error("Not a member of this league.");
+    return { ok: false, reason: "Not a member of this league." };
   }
 
   // Rate limit: reject if I've nudged anyone in the last hour.
@@ -55,10 +61,11 @@ export async function sendNudge(
     .orderBy(desc(nudges.createdAt))
     .limit(1);
   if (recent) {
-    const mins = Math.ceil(
-      (NUDGE_WINDOW_MS - (Date.now() - recent.createdAt.getTime())) / 60000,
+    const secs = Math.ceil(
+      (NUDGE_WINDOW_MS - (Date.now() - recent.createdAt.getTime())) / 1000,
     );
-    throw new Error(`Cool down — you can nudge again in ${mins} min.`);
+    const wait = secs >= 60 ? `${Math.ceil(secs / 60)} min` : `${secs}s`;
+    return { ok: false, reason: `Cool down — you can nudge again in ${wait}.` };
   }
 
   const [row] = await db
@@ -77,7 +84,10 @@ export async function sendNudge(
     "nudge",
   );
 
-  return { id: row.id, fromUserId: me.id, fromName: me.displayName, toUserId };
+  return {
+    ok: true,
+    payload: { id: row.id, fromUserId: me.id, fromName: me.displayName, toUserId },
+  };
 }
 
 /** The latest unseen nudge aimed at me in this league (for replay on open). */

@@ -13,7 +13,7 @@ import {
   type NudgePayload,
 } from "@/lib/leaderboard/actions";
 import { LeaderboardTable } from "./leaderboard-table";
-import { NudgeAnimation } from "./nudge-animation";
+import { NudgeAnimation, NUDGE_DURATION_MS } from "./nudge-animation";
 import type { LeaderboardRow } from "@/lib/leaderboard/queries";
 import { cn } from "@/lib/utils";
 import { celebrateClimb } from "@/lib/celebrate";
@@ -49,19 +49,19 @@ export function RealtimeLeaderboard({
   const broadcastRef = useRef<((p: NudgePayload) => void) | null>(null);
 
   // Shake the table, show the whack overlay, and sink the target's row to the
-  // bottom from impact (~0.4s in) until the overlay clears (~2s). Used for both
-  // live + replayed nudges.
+  // bottom from impact (~0.5s in) until the overlay clears. Used for both live
+  // + replayed nudges.
   const playNudge = useCallback(
     (payload: NudgePayload) => {
       setNudge(payload);
       void shake.start({
-        x: [0, -12, 12, -8, 8, -4, 4, 0],
-        transition: { duration: 0.6, delay: 0.35 },
+        x: [0, -14, 14, -10, 10, -6, 6, 0],
+        transition: { duration: 0.7, delay: 0.45, repeat: 1 },
       });
       sinkTimers.current.forEach(clearTimeout);
       sinkTimers.current = [
-        setTimeout(() => setSinkUserId(payload.toUserId), 400),
-        setTimeout(() => setSinkUserId(null), 2000),
+        setTimeout(() => setSinkUserId(payload.toUserId), 500),
+        setTimeout(() => setSinkUserId(null), NUDGE_DURATION_MS - 300),
       ];
     },
     [shake],
@@ -131,17 +131,17 @@ export function RealtimeLeaderboard({
   // Send a nudge: server gates it (rate limit), then we broadcast + self-replay.
   const handleNudge = useCallback(
     async (toUserId: string) => {
-      try {
-        const payload = await sendNudge(leagueId, toUserId);
-        broadcastRef.current?.(payload);
-        const targetName =
-          rows.find((r) => r.userId === toUserId)?.displayName ?? "them";
-        toast.success(`👊 Whacked ${targetName}!`);
-        // The sender sees the animation too, themed as their own hit.
-        playNudge({ ...payload, fromName: "You" });
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Couldn't nudge.");
+      const res = await sendNudge(leagueId, toUserId);
+      if (!res.ok) {
+        toast.error(res.reason);
+        return;
       }
+      broadcastRef.current?.(res.payload);
+      const targetName =
+        rows.find((r) => r.userId === toUserId)?.displayName ?? "them";
+      toast.success(`👊 Whacked ${targetName}!`);
+      // The sender sees the animation too, themed as their own hit.
+      playNudge({ ...res.payload, fromName: "You" });
     },
     [leagueId, rows, playNudge],
   );
