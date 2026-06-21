@@ -85,32 +85,9 @@ function CommentsSection({
   }
 
   return (
-    <div className="mt-2 space-y-3 border-t border-border/50 pt-3">
-      <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-        <MessageCircle className="size-3.5" /> Comments
-        {comments.length > 0 && (
-          <span className="text-muted-foreground/60">({comments.length})</span>
-        )}
-      </p>
-
-      {/* Everyone else's comments */}
-      {others.length > 0 && (
-        <ul className="space-y-2.5">
-          {others.map((c) => (
-            <li key={c.userId} className="flex items-start gap-2.5">
-              <Avatar url={c.avatarUrl} name={c.displayName} />
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-foreground">
-                  {c.displayName}
-                </p>
-                <p className="break-words text-sm text-muted-foreground">{c.body}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {/* My comment / composer — one per user, editable */}
+    <div className="space-y-3">
+      {/* My comment / composer — at the TOP so it stays visible above the
+          keyboard. scrollIntoView on focus keeps it in view on mobile. */}
       <div className="rounded-lg border border-gold/25 bg-gold/5 p-2.5">
         <p className="mb-1.5 text-[11px] font-medium text-gold/90">
           {hasMine ? "Your comment (editable)" : "Add your comment"}
@@ -118,6 +95,10 @@ function CommentsSection({
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value.slice(0, MAX_COMMENT_CHARS))}
+          onFocus={(e) =>
+            // ponytail: nudge the field into view when the mobile keyboard opens
+            setTimeout(() => e.target.scrollIntoView({ block: "center" }), 300)
+          }
           maxLength={MAX_COMMENT_CHARS}
           rows={2}
           placeholder="Drop your hot take…"
@@ -139,6 +120,23 @@ function CommentsSection({
         </div>
         {error && <p className="mt-1 text-[11px] text-destructive">{error}</p>}
       </div>
+
+      {/* Everyone else's comments */}
+      {others.length > 0 && (
+        <ul className="space-y-2.5">
+          {others.map((c) => (
+            <li key={c.userId} className="flex items-start gap-2.5">
+              <Avatar url={c.avatarUrl} name={c.displayName} />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-foreground">
+                  {c.displayName}
+                </p>
+                <p className="break-words text-sm text-muted-foreground">{c.body}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -191,40 +189,58 @@ export function AiSummaryCard({
             aria-hidden
           />
         </div>
-        <Dialog>
-          <DialogTrigger asChild>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-gold transition-colors hover:text-gold/80"
-            >
-              <Maximize2 className="size-3.5" />
-              Read full recap
-              {comments.length > 0 && (
-                <span className="inline-flex items-center gap-1 text-muted-foreground/70">
-                  <MessageCircle className="size-3.5" />
-                  {comments.length}
-                </span>
+        <div className="flex items-center gap-4">
+          <Dialog>
+            <DialogTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-gold transition-colors hover:text-gold/80"
+              >
+                <Maximize2 className="size-3.5" />
+                Read full recap
+              </button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="inline-flex items-center gap-2">
+                  <Sparkles className="size-4 text-gold" /> AI Summary
+                </DialogTitle>
+              </DialogHeader>
+              <RecapBody body={summary.body} />
+              {ago && (
+                <p className="text-[11px] text-muted-foreground/70">Updated {ago}</p>
               )}
-            </button>
-          </DialogTrigger>
-          <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle className="inline-flex items-center gap-2">
-                <Sparkles className="size-4 text-gold" /> AI Summary
-              </DialogTitle>
-            </DialogHeader>
-            <RecapBody body={summary.body} />
-            {ago && (
-              <p className="text-[11px] text-muted-foreground/70">Updated {ago}</p>
-            )}
-            <CommentsSection
-              summaryId={summary.id}
-              currentUserId={currentUserId}
-              initial={comments}
-              myComment={myComment}
-            />
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog>
+            <DialogTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-gold transition-colors hover:text-gold/80"
+              >
+                <MessageCircle className="size-3.5" />
+                Comments
+                {comments.length > 0 && (
+                  <span className="text-muted-foreground/70">({comments.length})</span>
+                )}
+              </button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="inline-flex items-center gap-2">
+                  <MessageCircle className="size-4 text-gold" /> Comments
+                </DialogTitle>
+              </DialogHeader>
+              <CommentsSection
+                summaryId={summary.id}
+                currentUserId={currentUserId}
+                initial={comments}
+                myComment={myComment}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
       </CardContent>
     </Card>
   );
