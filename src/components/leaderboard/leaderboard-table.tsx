@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { motion, AnimatePresence, LayoutGroup } from "motion/react";
-import { Crown, Medal, ArrowUp, ArrowDown, Minus, Flame, Target } from "lucide-react";
+import { useState } from "react";
+import { Crown, Medal, ArrowUp, ArrowDown, Minus, Flame, Target, Hand } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { CountUp } from "./count-up";
@@ -63,12 +64,41 @@ function Trend({ rank, previousRank }: { rank: number; previousRank: number }) {
   );
 }
 
+/** Small 👊 button to whack another user. Disables itself while the send is in flight. */
+function NudgeButton({ onNudge }: { onNudge: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      aria-label="Nudge"
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        try {
+          await onNudge();
+        } finally {
+          setBusy(false);
+        }
+      }}
+      className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground/60 transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"
+      title="Nudge — whack them down the table (once/hour)"
+    >
+      <Hand className="size-4" />
+    </button>
+  );
+}
+
 export function LeaderboardTable({
   rows,
   currentUserId,
+  onNudge,
+  sinkUserId,
 }: {
   rows: LeaderboardRow[];
   currentUserId: string;
+  onNudge?: (toUserId: string) => Promise<void>;
+  /** When set, that user's row is visually pushed to the bottom (nudge effect). */
+  sinkUserId?: string | null;
 }) {
   if (rows.length === 0) {
     return (
@@ -82,19 +112,27 @@ export function LeaderboardTable({
   // ties): 7,7,6,5,4,4,4,0,0 → 1,1,2,3,4,4,4,5,5. Rows are ordered by points,
   // so rank increments once per distinct points value. The stored `rank` can be
   // 0/stale for a newly-added member, so we never trust it for display.
-  const displayRanks: number[] = [];
   let dense = 0;
-  rows.forEach((row, i) => {
+  const ranked = rows.map((row, i) => {
     if (i === 0 || row.totalPoints !== rows[i - 1].totalPoints) dense += 1;
-    displayRanks[i] = dense;
+    return { row, rank: dense };
   });
+
+  // Render order: real order, but a sunk user is pushed to the bottom. Their
+  // real rank still shows (knocked down, not zeroed). Motion's layoutId keys on
+  // userId, so reordering animates the slide down (and back when cleared).
+  const ordered = sinkUserId
+    ? [
+        ...ranked.filter((r) => r.row.userId !== sinkUserId),
+        ...ranked.filter((r) => r.row.userId === sinkUserId),
+      ]
+    : ranked;
 
   return (
     <LayoutGroup>
       <motion.ol className="flex flex-col gap-2" layout>
         <AnimatePresence initial={false}>
-          {rows.map((row, i) => {
-            const rank = displayRanks[i];
+          {ordered.map(({ row, rank }) => {
             const isMe = row.userId === currentUserId;
             const isPodium = rank <= 3;
             return (
@@ -163,6 +201,9 @@ export function LeaderboardTable({
                 </div>
 
                 <div className="flex items-center gap-3">
+                  {onNudge && !isMe && (
+                    <NudgeButton onNudge={() => onNudge(row.userId)} />
+                  )}
                   <Trend rank={rank} previousRank={row.previousRank} />
                   <div className="text-right">
                     <CountUp

@@ -55,7 +55,7 @@ export const profiles = pgTable("profiles", {
   pushSubscription: jsonb("push_subscription"),
   notifPrefs: jsonb("notif_prefs")
     .notNull()
-    .default({ lockReminder: true, scoreHit: true, rankClimb: true, gameChallenge: true }),
+    .default({ lockReminder: true, scoreHit: true, rankClimb: true, gameChallenge: true, nudge: true }),
   isAdmin: boolean("is_admin").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -184,6 +184,36 @@ export const standings = pgTable(
   (t) => [
     primaryKey({ columns: [t.leagueId, t.userId] }),
     index("standings_league_rank_idx").on(t.leagueId, t.rank),
+  ],
+);
+
+/**
+ * A "nudge" — one user whacks another on the leaderboard. The animation itself
+ * is ephemeral (a Supabase broadcast), but we persist the nudge so the target
+ * can replay it on next open and so we can rate-limit sends (one per hour per
+ * sender, checked server-side). `seen` flips once the target plays it.
+ */
+export const nudges = pgTable(
+  "nudges",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => leagues.id, { onDelete: "cascade" }),
+    fromUserId: uuid("from_user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    toUserId: uuid("to_user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    seen: boolean("seen").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("nudges_from_idx").on(t.fromUserId, t.createdAt),
+    index("nudges_to_unseen_idx").on(t.toUserId, t.seen),
   ],
 );
 

@@ -142,7 +142,7 @@ export function MatchCard({
         {/* Right side: pick status / result */}
         {isUpcoming ? (
           prediction ? (
-            prediction.locked ? (
+            kickedOff ? (
               <span className="inline-flex items-center gap-1 font-medium text-muted-foreground">
                 <Lock className="size-3.5" /> Locked
               </span>

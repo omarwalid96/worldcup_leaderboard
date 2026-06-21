@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { Bell, BellOff, BellRing, Trophy, TrendingUp, Gamepad2 } from "lucide-react";
+import { Bell, BellOff, BellRing, Trophy, TrendingUp, Gamepad2, Hand } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ interface NotifPrefs {
   scoreHit: boolean;
   rankClimb: boolean;
   gameChallenge: boolean;
+  nudge: boolean;
 }
 
 interface PushSettingsProps {
@@ -247,6 +248,25 @@ export function PushSettings({
               id="pref-game"
               checked={prefs.gameChallenge}
               onCheckedChange={(v) => handlePrefChange("gameChallenge", v)}
+              disabled={isPending}
+            />
+          </div>
+
+          {/* Nudge */}
+          <div className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
+            <div className="flex flex-col gap-0.5">
+              <Label htmlFor="pref-nudge" className="font-medium leading-snug cursor-pointer flex items-center gap-1.5">
+                <Hand className="size-3.5 text-gold" />
+                Nudges
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Ping me when a friend whacks me on the leaderboard.
+              </p>
+            </div>
+            <Switch
+              id="pref-nudge"
+              checked={prefs.nudge}
+              onCheckedChange={(v) => handlePrefChange("nudge", v)}
               disabled={isPending}
             />
           </div>
