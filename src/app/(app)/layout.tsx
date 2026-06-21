@@ -4,6 +4,8 @@ import { BottomNav, SideNav } from "@/components/layout/app-nav";
 import { UserMenu } from "@/components/layout/user-menu";
 import { requireProfile } from "@/lib/auth/session";
 import { SwRegister } from "@/components/sw-register";
+import { EgyptHype } from "@/components/match/egypt-hype";
+import { getTodaysEgyptMatch } from "@/lib/matches/egypt";
 
 export default async function AppLayout({
   children,
@@ -11,6 +13,7 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const profile = await requireProfile();
+  const egyptMatch = await getTodaysEgyptMatch();
 
   return (
     <div className="bg-pitch min-h-dvh">
@@ -32,6 +35,9 @@ export default async function AppLayout({
           />
         </div>
       </header>
+
+      {/* Egypt match-day hype — only renders on the day of an Egypt game. */}
+      {egyptMatch && <EgyptHype match={egyptMatch} />}
 
       <div className="mx-auto flex max-w-5xl gap-8 px-4 py-6">
         {/* Desktop sidebar */}
