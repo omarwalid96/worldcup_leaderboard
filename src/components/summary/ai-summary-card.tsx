@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Maximize2, Sparkles } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
+import { Maximize2, MessageCircle, Send, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -11,6 +11,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import type { AiSummary } from "@/lib/summary/queries";
+import { submitComment } from "@/lib/summary/comments-actions";
+import { MAX_COMMENT_CHARS, type SummaryComment } from "@/lib/summary/comments";
 import { RecapBody } from "@/components/summary/recap-body";
 
 function timeAgo(iso: string): string {
@@ -23,12 +25,142 @@ function timeAgo(iso: string): string {
   return `${Math.round(hrs / 24)}d ago`;
 }
 
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+function Avatar({ url, name }: { url: string | null; name: string }) {
+  if (url) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={url}
+        alt={name}
+        className="size-7 shrink-0 rounded-full object-cover"
+      />
+    );
+  }
+  return (
+    <span className="grid size-7 shrink-0 place-items-center rounded-full bg-gold/15 text-[11px] font-semibold text-gold">
+      {initials(name)}
+    </span>
+  );
+}
+
+function CommentsSection({
+  summaryId,
+  currentUserId,
+  initial,
+  myComment,
+}: {
+  summaryId: string;
+  currentUserId: string;
+  initial: SummaryComment[];
+  myComment: string | null;
+}) {
+  const [comments, setComments] = useState(initial);
+  const [draft, setDraft] = useState(myComment ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const hasMine = comments.some((c) => c.userId === currentUserId);
+  const others = comments.filter((c) => c.userId !== currentUserId);
+  const mine = comments.find((c) => c.userId === currentUserId);
+
+  function send() {
+    setError(null);
+    startTransition(async () => {
+      const res = await submitComment(summaryId, draft);
+      if (!res.ok) {
+        setError(res.error ?? "Couldn't post. Try again.");
+        return;
+      }
+      if (res.comments) setComments(res.comments);
+    });
+  }
+
+  return (
+    <div className="mt-2 space-y-3 border-t border-border/50 pt-3">
+      <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+        <MessageCircle className="size-3.5" /> Comments
+        {comments.length > 0 && (
+          <span className="text-muted-foreground/60">({comments.length})</span>
+        )}
+      </p>
+
+      {/* Everyone else's comments */}
+      {others.length > 0 && (
+        <ul className="space-y-2.5">
+          {others.map((c) => (
+            <li key={c.userId} className="flex items-start gap-2.5">
+              <Avatar url={c.avatarUrl} name={c.displayName} />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-foreground">
+                  {c.displayName}
+                </p>
+                <p className="break-words text-sm text-muted-foreground">{c.body}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* My comment / composer — one per user, editable */}
+      <div className="rounded-lg border border-gold/25 bg-gold/5 p-2.5">
+        <p className="mb-1.5 text-[11px] font-medium text-gold/90">
+          {hasMine ? "Your comment (editable)" : "Add your comment"}
+        </p>
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value.slice(0, MAX_COMMENT_CHARS))}
+          maxLength={MAX_COMMENT_CHARS}
+          rows={2}
+          placeholder="Drop your hot take…"
+          className="w-full resize-none rounded-md border border-border/60 bg-background/60 px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground/50 focus:border-gold/50"
+        />
+        <div className="mt-1.5 flex items-center justify-between">
+          <span className="text-[11px] tabular-nums text-muted-foreground/60">
+            {draft.length}/{MAX_COMMENT_CHARS}
+          </span>
+          <button
+            type="button"
+            onClick={send}
+            disabled={pending || !draft.trim() || draft.trim() === mine?.body}
+            className="inline-flex items-center gap-1.5 rounded-md bg-gold px-3 py-1.5 text-xs font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-40"
+          >
+            <Send className="size-3.5" />
+            {hasMine ? "Update" : "Post"}
+          </button>
+        </div>
+        {error && <p className="mt-1 text-[11px] text-destructive">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Home-page "AI Summary" card — shows the latest /recap published to
  * ai_summaries. Always visible; renders the multi-line recap (Arabic + emoji)
- * with a live "updated X ago". Hidden entirely until the first recap exists.
+ * with a live "updated X ago". The full-recap popup also hosts the comments
+ * section (one editable comment per user, shown to everyone; read back by the
+ * /recap skill on its next run). Hidden entirely until the first recap exists.
  */
-export function AiSummaryCard({ summary }: { summary: AiSummary | null }) {
+export function AiSummaryCard({
+  summary,
+  currentUserId,
+  comments,
+  myComment,
+}: {
+  summary: AiSummary | null;
+  currentUserId: string;
+  comments: SummaryComment[];
+  myComment: string | null;
+}) {
   // Relative time is client-only to avoid an SSR/now() hydration mismatch.
   const [ago, setAgo] = useState<string | null>(null);
   useEffect(() => {
@@ -67,6 +199,12 @@ export function AiSummaryCard({ summary }: { summary: AiSummary | null }) {
             >
               <Maximize2 className="size-3.5" />
               Read full recap
+              {comments.length > 0 && (
+                <span className="inline-flex items-center gap-1 text-muted-foreground/70">
+                  <MessageCircle className="size-3.5" />
+                  {comments.length}
+                </span>
+              )}
             </button>
           </DialogTrigger>
           <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
@@ -79,6 +217,12 @@ export function AiSummaryCard({ summary }: { summary: AiSummary | null }) {
             {ago && (
               <p className="text-[11px] text-muted-foreground/70">Updated {ago}</p>
             )}
+            <CommentsSection
+              summaryId={summary.id}
+              currentUserId={currentUserId}
+              initial={comments}
+              myComment={myComment}
+            />
           </DialogContent>
         </Dialog>
       </CardContent>

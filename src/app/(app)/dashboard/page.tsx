@@ -11,6 +11,7 @@ import { getPredictableMatches } from "@/lib/matches/queries";
 import { getMainLeagueLeaders } from "@/lib/leaderboard/queries";
 import { listSponsors } from "@/lib/sponsors/actions";
 import { getLatestSummary } from "@/lib/summary/queries";
+import { getMyComment, listComments } from "@/lib/summary/comments-actions";
 
 export const metadata: Metadata = { title: "Home" };
 
@@ -22,6 +23,9 @@ export default async function DashboardPage() {
     listSponsors(),
     getLatestSummary(),
   ]);
+  const [comments, myComment] = summary
+    ? await Promise.all([listComments(summary.id), getMyComment(summary.id)])
+    : [[], null];
 
   return (
     <div className="flex flex-col gap-6">
@@ -34,7 +38,12 @@ export default async function DashboardPage() {
       {leaders && <LeagueLeaders data={leaders} />}
 
       {/* AI Summary — the latest /recap, published to all users. Under Leaders. */}
-      <AiSummaryCard summary={summary} />
+      <AiSummaryCard
+        summary={summary}
+        currentUserId={profile.id}
+        comments={comments}
+        myComment={myComment}
+      />
 
       {/* Quick actions — compact: icon beside the words, single tidy row each. */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

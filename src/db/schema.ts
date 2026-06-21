@@ -269,6 +269,25 @@ export const aiSummaries = pgTable("ai_summaries", {
     .defaultNow(),
 });
 
+/** One comment per user per AI Summary recap, shown to everyone in the popup. */
+export const summaryComments = pgTable(
+  "summary_comments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    summaryId: uuid("summary_id")
+      .notNull()
+      .references(() => aiSummaries.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [unique().on(t.summaryId, t.userId)],
+);
+
 /** Per-user rank snapshot per matchday per league, for the rank-over-time chart. */
 export const rankHistory = pgTable(
   "rank_history",

@@ -85,6 +85,14 @@ try {
     from sponsors s left join profiles p on p.id = s.uploaded_by
     where s.created_at >= ${sinceExpr}`;
 
+  // Comments people left on the PREVIOUS recap — so this recap can clap back.
+  const prevRecapComments = await sql`
+    select p.display_name, c.body
+    from summary_comments c
+    join profiles p on p.id = c.user_id
+    where c.summary_id = (select id from ai_summaries order by created_at desc limit 1)
+    order by c.created_at`;
+
   out({
     window_days: days,
     generated_at: new Date().toISOString(),
@@ -97,6 +105,7 @@ try {
     games_played: games,
     quotes,
     sponsors_added: sponsorsAdded,
+    prev_recap_comments: prevRecapComments,
   });
   await sql.end();
 } catch (e) {

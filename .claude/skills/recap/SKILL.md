@@ -26,7 +26,8 @@ from REAL data, not invented.
    This prints JSON: current `standings` (rank, points, streak, exact_hits, quote),
    `graded_picks` (finished matches with each person's pick + points won), `live_matches`,
    `recent_picks`, `badges_earned`, `games_played` (duel winners/losers), `quotes`,
-   `sponsors_added`. If it returns `{"error": ...}`, report that and stop.
+   `sponsors_added`, and `prev_recap_comments` (what people commented on the LAST
+   recap — name + body). If it returns `{"error": ...}`, report that and stop.
 
 3. **Write the recap** from that data. Style:
    - **Funny roast + hype, light Egyptian/Arabic football-banter flavor** (Franco-Arabic
@@ -37,6 +38,8 @@ from REAL data, not invented.
      person at the bottom, a 0-point day, a duel loss.
    - **Call out real wins** — exact scorelines (3 pts), big rank climbs, badges earned,
      penalty-duel victories.
+   - **Clap back at `prev_recap_comments`** if any exist — react to what people said
+     about the last recap by name (agree, roast back, or run with the joke). Skip if empty.
    - Ground EVERY claim in the data — real names, real scores, real picks. Do not invent
      events. If a day was quiet, say so with a joke rather than fabricating drama.
    - Keep it **short and punchy** — a WhatsApp message, not an essay. ~5–12 lines.
