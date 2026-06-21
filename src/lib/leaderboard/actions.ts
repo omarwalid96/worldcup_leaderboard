@@ -116,6 +116,29 @@ export async function getMyUnseenNudge(
   return { ...row, toUserId: me.id };
 }
 
+/** Who whacked me recently (last 24h) in this league — for the persistent
+ *  banner above the table. Names, newest first. Independent of the `seen`
+ *  flag so it survives the one-shot replay animation. */
+export async function getMyRecentNudgers(
+  leagueId: string,
+): Promise<string[]> {
+  const me = await requireProfile();
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const rows = await db
+    .select({ fromName: profiles.displayName, createdAt: nudges.createdAt })
+    .from(nudges)
+    .innerJoin(profiles, eq(profiles.id, nudges.fromUserId))
+    .where(
+      and(
+        eq(nudges.leagueId, leagueId),
+        eq(nudges.toUserId, me.id),
+        gt(nudges.createdAt, cutoff),
+      ),
+    )
+    .orderBy(desc(nudges.createdAt));
+  return rows.map((r) => r.fromName);
+}
+
 /** Mark all my unseen nudges in this league as seen (called after replay). */
 export async function markNudgesSeen(leagueId: string): Promise<void> {
   const me = await requireProfile();

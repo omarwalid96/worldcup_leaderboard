@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { Radio } from "lucide-react";
+import { Radio, X } from "lucide-react";
 import { motion, useAnimationControls } from "motion/react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -9,6 +9,7 @@ import {
   fetchLeaderboardRows,
   sendNudge,
   getMyUnseenNudge,
+  getMyRecentNudgers,
   markNudgesSeen,
   type NudgePayload,
 } from "@/lib/leaderboard/actions";
@@ -42,6 +43,7 @@ export function RealtimeLeaderboard({
   const [connected, setConnected] = useState(false);
   const [justUpdated, setJustUpdated] = useState(false);
   const [nudge, setNudge] = useState<NudgePayload | null>(null);
+  const [nudgers, setNudgers] = useState<string[]>([]);
   const [sinkUserId, setSinkUserId] = useState<string | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sinkTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -106,7 +108,10 @@ export function RealtimeLeaderboard({
       // A nudge aimed at me → play it live (not RLS-gated, always arrives).
       .on("broadcast", { event: "nudge" }, (msg) => {
         const payload = (msg as { payload?: NudgePayload }).payload;
-        if (payload && payload.toUserId === currentUserId) playNudge(payload);
+        if (payload && payload.toUserId === currentUserId) {
+          playNudge(payload);
+          setNudgers((prev) => [payload.fromName, ...prev]);
+        }
       })
       .subscribe((status) => {
         setConnected(status === "SUBSCRIBED");
@@ -119,6 +124,8 @@ export function RealtimeLeaderboard({
     void getMyUnseenNudge(leagueId).then((unseen) => {
       if (unseen) playNudge(unseen);
     });
+    // Persistent "who whacked you" banner — survives the one-shot replay.
+    void getMyRecentNudgers(leagueId).then(setNudgers);
 
     return () => {
       if (flashTimer.current) clearTimeout(flashTimer.current);
@@ -156,6 +163,26 @@ export function RealtimeLeaderboard({
             void markNudgesSeen(leagueId);
           }}
         />
+      )}
+      {nudgers.length > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-gold/30 bg-gold/10 px-3 py-2 text-sm">
+          <span className="text-base leading-none">🔨</span>
+          <p className="min-w-0 flex-1 text-foreground">
+            {/* Show who whacked you; dedupe + count repeats. */}
+            <span className="font-semibold text-gold">
+              {[...new Set(nudgers)].join(", ")}
+            </span>{" "}
+            whacked you{nudgers.length > 1 ? ` (${nudgers.length}×)` : ""}!
+          </p>
+          <button
+            type="button"
+            onClick={() => setNudgers([])}
+            aria-label="Dismiss"
+            className="shrink-0 text-muted-foreground/70 transition-colors hover:text-foreground"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
       )}
       <div className="flex items-center justify-end">
         <span
