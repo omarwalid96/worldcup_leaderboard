@@ -1,29 +1,58 @@
 import type { FootballProvider, ProviderFixture, ProviderResult } from "./types";
 import { openfootballProvider } from "./openfootball";
 import { worldcup26Provider, worldcup26AllResults } from "./worldcup26";
+import { espnLiveResults, espnMatchKey } from "./espn";
 
 /**
- * Near-live provider with a reliable fallback:
- *   - PRIMARY: worldcup26.ir — fixtures + in-play live + results (single source,
- *     so live scores match our fixtures 1:1). Flaky, so it retries internally.
- *   - FALLBACK: openfootball — used for getFixtures only if worldcup26 is fully
- *     unreachable, so seeding/sync never hard-fails.
+ * Near-live provider with redundant sources:
+ *   - SCHEDULE: worldcup26.ir — fixtures + ids (kept authoritative so our
+ *     externalIds stay stable). Flaky, so it retries internally.
+ *   - LIVE (preferred): ESPN — overlays live status+score onto the wc26
+ *     schedule, matched by team names. ESPN is more reliable for in-play state
+ *     and reports a real full-time flag, so its `finished` flips a wc26 match
+ *     that's stuck `live` (the stale-feed bug) and the cron then grades it.
+ *   - FALLBACK: openfootball — getFixtures only, if wc26 is fully unreachable.
  *
- * Scores persist to the DB (cron → DB → users), so an outage just means the
- * last-known scores stay until the source recovers.
+ * ESPN is undocumented and fails soft (espnLiveResults → [] on any error), so a
+ * dead/reshaped ESPN just leaves the wc26 status untouched. Scores persist to
+ * the DB (cron → DB → users); an outage keeps the last-known scores.
  */
+
+/** Overlay ESPN's live status+score onto wc26 fixtures, ESPN preferred. */
+function applyEspnOverlay(
+  fixtures: ProviderFixture[],
+  espn: Awaited<ReturnType<typeof espnLiveResults>>,
+): ProviderFixture[] {
+  if (espn.length === 0) return fixtures; // ESPN down/empty → wc26 stands
+  const byKey = new Map(espn.map((e) => [e.matchKey, e]));
+  return fixtures.map((f) => {
+    const e = byKey.get(espnMatchKey(f.homeTeam, f.awayTeam));
+    // Only adopt ESPN when it actually reports the match in-play or done —
+    // a `scheduled` ESPN entry never overrides a wc26 live/finished state.
+    if (!e || e.status === "scheduled") return f;
+    return {
+      ...f,
+      status: e.status,
+      homeScore: e.homeScore ?? f.homeScore,
+      awayScore: e.awayScore ?? f.awayScore,
+    };
+  });
+}
+
 export const compositeProvider: FootballProvider = {
-  name: "worldcup26+openfootball",
+  name: "espn+worldcup26+openfootball",
 
   async getFixtures(): Promise<ProviderFixture[]> {
+    let fixtures: ProviderFixture[];
     try {
-      const fixtures = await worldcup26Provider.getFixtures();
-      if (fixtures.length > 0) return fixtures;
-      throw new Error("worldcup26 returned no fixtures");
+      fixtures = await worldcup26Provider.getFixtures();
+      if (fixtures.length === 0) throw new Error("worldcup26 returned no fixtures");
     } catch {
       // Fallback so we always have a schedule to seed.
-      return openfootballProvider.getFixtures();
+      fixtures = await openfootballProvider.getFixtures();
     }
+    // ESPN-preferred live overlay (soft: [] leaves fixtures unchanged).
+    return applyEspnOverlay(fixtures, await espnLiveResults());
   },
 
   async getLiveMatches(): Promise<ProviderResult[]> {

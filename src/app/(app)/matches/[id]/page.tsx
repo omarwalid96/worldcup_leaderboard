@@ -7,6 +7,7 @@ import { KickoffTime, PredictionCountdown } from "@/components/match/kickoff-tim
 import { FriendsPicks } from "@/components/match/friends-picks";
 import { MatchAdmin } from "@/components/admin/match-admin";
 import { LiveRefresher } from "@/components/match/live-refresher";
+import { LiveOverlay } from "@/components/match/live-overlay";
 import { requireProfile } from "@/lib/auth/session";
 import { getMatchForPrediction, getMatchPredictions } from "@/lib/predictions/queries";
 import { isPredictable } from "@/lib/time/usday";
@@ -79,6 +80,11 @@ export default async function PredictPage({
           )}
         </div>
       </div>
+
+      {/* Live score + ticking clock from ESPN (display only, fails soft). */}
+      {match.status === "live" && (
+        <LiveOverlay homeTeam={match.homeTeam} awayTeam={match.awayTeam} />
+      )}
 
       {/* Live countdown to the lock — coarse until the final 10 min, then a
           ticking mm:ss with an urgent red pulse. */}
