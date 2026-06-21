@@ -7,6 +7,7 @@ import { Lock, Check, ChevronRight } from "lucide-react";
 import { TeamFlag } from "./team-flag";
 import { KickoffTime, PredictionCountdown } from "./kickoff-time";
 import { CardPicks } from "./card-picks";
+import { useLiveMatch } from "./use-live-match";
 import { cn } from "@/lib/utils";
 import type { MatchWithPrediction } from "@/lib/matches/queries";
 
@@ -69,10 +70,16 @@ export function MatchCard({
   /** True only when the match is in the 24h pre-kickoff window and not locked. */
   predictable?: boolean;
 }) {
-  const { status, homeScore, awayScore, prediction } = match;
+  const { status, prediction } = match;
   const isLive = status === "live";
   const isFinished = status === "finished";
   const isUpcoming = status === "scheduled";
+
+  // While live, prefer ESPN's score+minute (fresher than the cron's DB write).
+  // Falls back to the DB values if ESPN has nothing for this match.
+  const live = useLiveMatch(match.homeTeam, match.awayTeam, isLive);
+  const homeScore = live ? live.homeScore : match.homeScore;
+  const awayScore = live ? live.awayScore : match.awayScore;
 
   const homeWon = isFinished && (homeScore ?? 0) > (awayScore ?? 0);
   const awayWon = isFinished && (awayScore ?? 0) > (homeScore ?? 0);
@@ -100,7 +107,8 @@ export function MatchCard({
         </span>
         {isLive ? (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-live/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-live">
-            <span className="size-1.5 rounded-full bg-live animate-live-pulse" /> Live
+            <span className="size-1.5 rounded-full bg-live animate-live-pulse" />
+            {live?.clock ? live.clock : "Live"}
           </span>
         ) : isFinished ? (
           <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">

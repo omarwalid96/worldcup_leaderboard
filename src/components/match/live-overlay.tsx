@@ -1,28 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { teamCodeOf } from "@/lib/football/team-ids";
+import { useLiveMatch } from "./use-live-match";
 
 /**
- * Live score + match clock for the match page, sourced from /api/live (ESPN).
- *
- * Polls every 60s while the tab is visible. The /api/live route caches ESPN
- * server-side for 60s, so 100 viewers still cause ≤1 upstream fetch/min.
- *
- * Renders NOTHING unless ESPN reports this exact match live — so if ESPN is
- * down, reshapes its JSON, or the match isn't live there, the page is
+ * Live score + match clock for the match detail page, sourced from ESPN via
+ * useLiveMatch (/api/live). Renders NOTHING unless ESPN reports this exact match
+ * live — so if ESPN is down or the match isn't live there, the page is
  * unchanged (DB scores stand). Display only; never grades.
  */
-interface LiveMatch {
-  home: string;
-  away: string;
-  homeScore: number;
-  awayScore: number;
-  clock: string;
-  period: number;
-  completed: boolean;
-}
-
 export function LiveOverlay({
   homeTeam,
   awayTeam,
@@ -30,36 +15,7 @@ export function LiveOverlay({
   homeTeam: string;
   awayTeam: string;
 }) {
-  const [m, setM] = useState<LiveMatch | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    const poll = async () => {
-      if (document.visibilityState !== "visible") return;
-      try {
-        const res = await fetch("/api/live");
-        const data: { matches?: LiveMatch[] } = await res.json();
-        // Match by FIFA team code — ESPN ids/spellings differ from ours.
-        const wantHome = teamCodeOf(homeTeam);
-        const wantAway = teamCodeOf(awayTeam);
-        const hit = (data.matches ?? []).find(
-          (x) =>
-            teamCodeOf(x.home) === wantHome &&
-            teamCodeOf(x.away) === wantAway,
-        );
-        if (alive) setM(hit ?? null);
-      } catch {
-        /* fail soft: keep last value / show nothing */
-      }
-    };
-    poll();
-    const id = setInterval(poll, 60_000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, [homeTeam, awayTeam]);
-
+  const m = useLiveMatch(homeTeam, awayTeam);
   if (!m) return null;
 
   return (
