@@ -26,7 +26,8 @@ function applyEspnOverlay(
   if (espn.length === 0) return fixtures; // ESPN down/empty → wc26 stands
   const byKey = new Map(espn.map((e) => [e.matchKey, e]));
   return fixtures.map((f) => {
-    const e = byKey.get(espnMatchKey(f.homeTeam, f.awayTeam));
+    const key = espnMatchKey(f.homeTeam, f.awayTeam);
+    const e = key ? byKey.get(key) : undefined;
     // Only adopt ESPN when it actually reports the match in-play or done —
     // a `scheduled` ESPN entry never overrides a wc26 live/finished state.
     if (!e || e.status === "scheduled") return f;

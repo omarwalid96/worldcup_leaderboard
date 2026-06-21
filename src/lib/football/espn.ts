@@ -1,4 +1,5 @@
 import type { ProviderMatchStatus } from "./types";
+import { teamCodeOf } from "./team-ids";
 
 /**
  * ESPN hidden API (site.api.espn.com) — secondary live source, ESPN-preferred.
@@ -16,25 +17,18 @@ const ESPN =
   "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard";
 
 export interface EspnLive {
-  /** Normalized "home|away" key for reconciliation against our fixtures. */
+  /** "HOMECODE|AWAYCODE" (FIFA codes) for reconciliation against our fixtures. */
   matchKey: string;
   status: ProviderMatchStatus;
   homeScore: number | null;
   awayScore: number | null;
 }
 
-/** Normalize a team name to letters-only lowercase for cross-source matching.
- *  Strips accents first (NFD) so "Côte d'Ivoire" matches "Cote d'Ivoire". */
-export function normTeam(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z]/g, "");
-}
-
-export function espnMatchKey(home: string, away: string): string {
-  return `${normTeam(home)}|${normTeam(away)}`;
+/** Cross-provider match key from FIFA team codes, or null if either is unknown. */
+export function espnMatchKey(home: string, away: string): string | null {
+  const h = teamCodeOf(home);
+  const a = teamCodeOf(away);
+  return h && a ? `${h}|${a}` : null;
 }
 
 /** ESPN state → our status. `completed` is the authoritative full-time flag. */
@@ -67,8 +61,10 @@ export async function espnLiveResults(): Promise<EspnLive[]> {
       const homeName = home.team?.displayName;
       const awayName = away.team?.displayName;
       if (!homeName || !awayName) continue;
+      const matchKey = espnMatchKey(homeName, awayName);
+      if (!matchKey) continue; // unknown team spelling → skip (wc26 stands)
       out.push({
-        matchKey: espnMatchKey(homeName, awayName),
+        matchKey,
         status: statusOf(st?.type?.state ?? "", Boolean(st?.type?.completed)),
         homeScore: home.score == null ? null : Number(home.score),
         awayScore: away.score == null ? null : Number(away.score),

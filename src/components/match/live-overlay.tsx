@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { teamCodeOf } from "@/lib/football/team-ids";
 
 /**
  * Live score + match clock for the match page, sourced from /api/live (ESPN).
@@ -22,13 +23,6 @@ interface LiveMatch {
   completed: boolean;
 }
 
-const norm = (s: string) =>
-  s
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z]/g, "");
-
 export function LiveOverlay({
   homeTeam,
   awayTeam,
@@ -45,10 +39,13 @@ export function LiveOverlay({
       try {
         const res = await fetch("/api/live");
         const data: { matches?: LiveMatch[] } = await res.json();
-        // Match by team names — ESPN ids don't match our externalIds.
+        // Match by FIFA team code — ESPN ids/spellings differ from ours.
+        const wantHome = teamCodeOf(homeTeam);
+        const wantAway = teamCodeOf(awayTeam);
         const hit = (data.matches ?? []).find(
           (x) =>
-            norm(x.home) === norm(homeTeam) && norm(x.away) === norm(awayTeam),
+            teamCodeOf(x.home) === wantHome &&
+            teamCodeOf(x.away) === wantAway,
         );
         if (alive) setM(hit ?? null);
       } catch {
