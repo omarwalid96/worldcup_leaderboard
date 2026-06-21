@@ -13,6 +13,7 @@ interface NotifPrefs {
   scoreHit: boolean;
   rankClimb: boolean;
   gameChallenge: boolean;
+  nudge: boolean;
 }
 
 function parseNotifPrefs(raw: unknown): NotifPrefs {
@@ -21,6 +22,7 @@ function parseNotifPrefs(raw: unknown): NotifPrefs {
     scoreHit: true,
     rankClimb: true,
     gameChallenge: true,
+    nudge: true,
   };
   if (!raw || typeof raw !== "object") return defaults;
   const r = raw as Record<string, unknown>;
@@ -29,6 +31,7 @@ function parseNotifPrefs(raw: unknown): NotifPrefs {
     scoreHit: r.scoreHit !== false,
     rankClimb: r.rankClimb !== false,
     gameChallenge: r.gameChallenge !== false,
+    nudge: r.nudge !== false,
   };
 }
 

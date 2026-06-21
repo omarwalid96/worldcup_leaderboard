@@ -10,6 +10,7 @@ export interface NotifPrefs {
   scoreHit: boolean;
   rankClimb: boolean;
   gameChallenge: boolean;
+  nudge: boolean;
 }
 
 /**
