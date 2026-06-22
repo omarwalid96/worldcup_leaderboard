@@ -201,7 +201,12 @@ export function ScorePicker({
           </motion.div>
         ))}
       </AnimatePresence>
-      {/* Score steppers */}
+      {/* Score steppers — labelled so a locked pick reads as the user's, not the result. */}
+      {locked && (
+        <p className="-mb-2 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          {hadPrediction ? "Your prediction" : "You didn't predict this match"}
+        </p>
+      )}
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 rounded-2xl border bg-card/70 p-6">
         <div className="flex flex-col items-center gap-3 text-center">
           <TeamFlag code={home.code} alt={home.name} size={48} />
