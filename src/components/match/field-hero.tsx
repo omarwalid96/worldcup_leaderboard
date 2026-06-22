@@ -124,12 +124,12 @@ export function FieldHero({
             <span>{awayScore}</span>
           </div>
           {isLive ? (
-            <div className="flex items-center gap-1.5 rounded-full bg-live/90 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
-              <span className="size-1.5 animate-pulse rounded-full bg-white" />
+            <div className="flex items-center gap-1.5 rounded-full border border-live/40 bg-background/80 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-live backdrop-blur-sm">
+              <span className="size-1.5 animate-pulse rounded-full bg-live" />
               {label}
             </div>
           ) : (
-            <div className="rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white/80">
+            <div className="rounded-full border border-white/15 bg-background/40 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white/80 backdrop-blur-sm">
               {label}
             </div>
           )}

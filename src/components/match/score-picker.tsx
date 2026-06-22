@@ -201,35 +201,49 @@ export function ScorePicker({
           </motion.div>
         ))}
       </AnimatePresence>
-      {/* Score steppers — labelled so a locked pick reads as the user's, not the result. */}
-      {locked && (
-        <p className="-mb-2 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          {hadPrediction ? "Your prediction" : "You didn't predict this match"}
-        </p>
-      )}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 rounded-2xl border bg-card/70 p-6">
-        <div className="flex flex-col items-center gap-3 text-center">
-          <TeamFlag code={home.code} alt={home.name} size={48} />
-          <span className="text-sm font-semibold">{home.name}</span>
-          <Stepper value={homePick} onChange={setHomePick} disabled={locked || pending} label={`${home.name} goals`} />
-        </div>
-
-        <span className="pb-8 text-2xl font-bold text-muted-foreground">–</span>
-
-        <div className="flex flex-col items-center gap-3 text-center">
-          <TeamFlag code={away.code} alt={away.name} size={48} />
-          <span className="text-sm font-semibold">{away.name}</span>
-          <Stepper value={awayPick} onChange={setAwayPick} disabled={locked || pending} label={`${away.name} goals`} />
-        </div>
-      </div>
-
+      {/* Locked → compact read-only summary (no oversized steppers). */}
       {locked ? (
-        <div className="flex items-center justify-center gap-2 rounded-xl border border-border/60 bg-muted/40 px-4 py-3 text-center text-sm font-medium text-muted-foreground">
-          <Lock className="size-4 shrink-0" />
-          {lockReason ?? "This match has kicked off — picks are locked."}
+        <div className="flex flex-col gap-2 rounded-xl border bg-card/70 p-4">
+          <div className="flex items-center justify-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            <Lock className="size-3" />
+            {hadPrediction ? "Your prediction" : "You didn't predict this match"}
+          </div>
+          {hadPrediction && (
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+              <div className="flex items-center justify-end gap-2 text-right">
+                <span className="truncate text-sm font-semibold">{home.name}</span>
+                <TeamFlag code={home.code} alt={home.name} size={24} />
+              </div>
+              <span className="font-numeric text-2xl font-bold tabular-nums">
+                {homePick}<span className="px-1.5 text-muted-foreground">–</span>{awayPick}
+              </span>
+              <div className="flex items-center gap-2">
+                <TeamFlag code={away.code} alt={away.name} size={24} />
+                <span className="truncate text-sm font-semibold">{away.name}</span>
+              </div>
+            </div>
+          )}
+          {lockReason && (
+            <p className="text-center text-xs text-muted-foreground">{lockReason}</p>
+          )}
         </div>
       ) : (
         <>
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 rounded-2xl border bg-card/70 p-6">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <TeamFlag code={home.code} alt={home.name} size={48} />
+            <span className="text-sm font-semibold">{home.name}</span>
+            <Stepper value={homePick} onChange={setHomePick} disabled={pending} label={`${home.name} goals`} />
+          </div>
+
+          <span className="pb-8 text-2xl font-bold text-muted-foreground">–</span>
+
+          <div className="flex flex-col items-center gap-3 text-center">
+            <TeamFlag code={away.code} alt={away.name} size={48} />
+            <span className="text-sm font-semibold">{away.name}</span>
+            <Stepper value={awayPick} onChange={setAwayPick} disabled={pending} label={`${away.name} goals`} />
+          </div>
+        </div>
           {/* DOUBLE-DOWN — disabled for now (kept for future use). To re-enable,
               uncomment this toggle; the scoring/DB logic is intact.
           <button
