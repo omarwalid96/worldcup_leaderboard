@@ -33,8 +33,18 @@ export function EgyptHype({ match }: { match: EgyptMatch }) {
   const [show, setShow] = useState(true);
   const fired = useRef(false);
 
+  // Result, once the match is finished and scored.
+  const won =
+    match.status === "finished" &&
+    match.egyptScore != null &&
+    match.oppScore != null &&
+    match.egyptScore > match.oppScore;
+
   useEffect(() => {
-    if (sessionStorage.getItem("egypt-hype-dismissed")) {
+    // Per-result dismiss key, so a fresh win re-shows even if an earlier state
+    // was dismissed this session.
+    const key = `egypt-hype-dismissed-${match.status}-${won ? "W" : ""}`;
+    if (sessionStorage.getItem(key)) {
       setShow(false);
       return;
     }
@@ -43,32 +53,48 @@ export function EgyptHype({ match }: { match: EgyptMatch }) {
     tick();
     const id = setInterval(tick, 1000);
 
-    // One celebratory flag burst on open.
+    // Celebratory flag burst on open — bigger and repeating for a WIN.
     if (!fired.current) {
       fired.current = true;
-      haptic([20, 40, 20]);
+      haptic(won ? [30, 50, 30, 50, 60] : [20, 40, 20]);
       const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
       if (!reduced) {
-        const burst = (origin: { x: number; y: number }) =>
-          confetti({ particleCount: 70, spread: 80, startVelocity: 45, origin, colors: FLAG });
+        const burst = (origin: { x: number; y: number }, n = 70) =>
+          confetti({ particleCount: n, spread: 80, startVelocity: 45, origin, colors: FLAG });
         burst({ x: 0.2, y: 0.3 });
         setTimeout(() => burst({ x: 0.8, y: 0.3 }), 200);
         setTimeout(() => burst({ x: 0.5, y: 0.25 }), 400);
+        if (won) {
+          // A second, fuller wave for the win.
+          setTimeout(() => burst({ x: 0.5, y: 0.2 }, 140), 700);
+          setTimeout(() => burst({ x: 0.3, y: 0.25 }, 120), 1100);
+          setTimeout(() => burst({ x: 0.7, y: 0.25 }, 120), 1300);
+        }
       }
     }
     return () => clearInterval(id);
-  }, [match.kickoffUtc]);
+  }, [match.kickoffUtc, match.status, won]);
 
   if (!show) return null;
 
   const opponent = match.isHome ? match.awayTeam : match.homeTeam;
-  const live = left !== null && left <= 0;
+  const finished = match.status === "finished";
+  const live = !finished && left !== null && left <= 0;
+  const score =
+    match.egyptScore != null && match.oppScore != null
+      ? `${match.egyptScore}–${match.oppScore}`
+      : null;
+  const dismissKey = `egypt-hype-dismissed-${match.status}-${won ? "W" : ""}`;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: -12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="relative overflow-hidden border-b border-[#C09300]/40 bg-gradient-to-r from-[#CE1126] via-[#7a0a16] to-black"
+      className={
+        won
+          ? "relative overflow-hidden border-b border-[#C09300]/60 bg-gradient-to-r from-[#C09300] via-[#CE1126] to-black"
+          : "relative overflow-hidden border-b border-[#C09300]/40 bg-gradient-to-r from-[#CE1126] via-[#7a0a16] to-black"
+      }
     >
       {/* moving shimmer */}
       <motion.div
@@ -88,7 +114,15 @@ export function EgyptHype({ match }: { match: EgyptMatch }) {
         </motion.span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-bold text-white">
-            {live ? (
+            {finished ? (
+              won ? (
+                <>🏆 MASR! Egypt beat {opponent} {score} — yalla ya Pharaohs! 🦅🇪🇬</>
+              ) : score && match.egyptScore === match.oppScore ? (
+                <>Egypt held {opponent} {score} — keep believing! 🦅</>
+              ) : (
+                <>Egypt {score} vs {opponent} — heads up, Pharaohs. 🦅</>
+              )
+            ) : live ? (
               <span className="inline-flex items-center gap-1.5">
                 <span className="size-2 animate-pulse rounded-full bg-white" />
                 Egypt is playing — yalla ya Pharaohs! 🦅
@@ -98,17 +132,27 @@ export function EgyptHype({ match }: { match: EgyptMatch }) {
             )}
           </p>
           <p className="text-[11px] font-medium text-white/80">
-            {live ? "LIVE NOW" : `Kickoff in ${left !== null ? fmtCountdown(left) : "…"}`}
-            {" · "}
-            <Link href="/matches" className="underline underline-offset-2">
-              Make your prediction
-            </Link>
+            {finished ? (
+              won ? (
+                "FULL TIME · A win for Masr 🎉"
+              ) : (
+                "FULL TIME"
+              )
+            ) : (
+              <>
+                {live ? "LIVE NOW" : `Kickoff in ${left !== null ? fmtCountdown(left) : "…"}`}
+                {" · "}
+                <Link href="/matches" className="underline underline-offset-2">
+                  Make your prediction
+                </Link>
+              </>
+            )}
           </p>
         </div>
         <button
           type="button"
           onClick={() => {
-            sessionStorage.setItem("egypt-hype-dismissed", "1");
+            sessionStorage.setItem(dismissKey, "1");
             setShow(false);
           }}
           aria-label="Dismiss"

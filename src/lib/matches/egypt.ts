@@ -8,6 +8,10 @@ export interface EgyptMatch {
   awayTeam: string;
   kickoffUtc: string;
   isHome: boolean;
+  status: "scheduled" | "live" | "finished";
+  /** Egypt's goals / opponent's goals — null until a score exists. */
+  egyptScore: number | null;
+  oppScore: number | null;
 }
 
 /**
@@ -21,6 +25,9 @@ export async function getTodaysEgyptMatch(): Promise<EgyptMatch | null> {
       homeTeam: matches.homeTeam,
       awayTeam: matches.awayTeam,
       kickoffUtc: matches.kickoffUtc,
+      status: matches.status,
+      homeScore: matches.homeScore,
+      awayScore: matches.awayScore,
     })
     .from(matches)
     .where(
@@ -33,10 +40,14 @@ export async function getTodaysEgyptMatch(): Promise<EgyptMatch | null> {
     .orderBy(asc(matches.kickoffUtc))
     .limit(1);
   if (!row) return null;
+  const isHome = /egypt/i.test(row.homeTeam);
   return {
     homeTeam: row.homeTeam,
     awayTeam: row.awayTeam,
     kickoffUtc: row.kickoffUtc.toISOString(),
-    isHome: /egypt/i.test(row.homeTeam),
+    isHome,
+    status: row.status as EgyptMatch["status"],
+    egyptScore: isHome ? row.homeScore : row.awayScore,
+    oppScore: isHome ? row.awayScore : row.homeScore,
   };
 }
