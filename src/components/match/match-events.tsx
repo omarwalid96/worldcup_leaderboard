@@ -100,7 +100,8 @@ export function MatchEvents({
         <span className="text-right">{awayTeam}</span>
       </div>
       <div className="flex flex-col gap-2">
-        {events.map((e, i) => (
+        {/* Newest first — latest minute at the top. */}
+        {[...events].reverse().map((e, i) => (
           <div key={i} className="grid grid-cols-2 gap-2">
             <div>{e.side === "home" && <Row e={e} align="left" />}</div>
             <div>{e.side === "away" && <Row e={e} align="right" />}</div>
