@@ -5,6 +5,7 @@ import { UserMenu } from "@/components/layout/user-menu";
 import { requireProfile } from "@/lib/auth/session";
 import { SwRegister } from "@/components/sw-register";
 import { EgyptHype } from "@/components/match/egypt-hype";
+import { LiveIsland } from "@/components/match/live-island";
 import { getTodaysEgyptMatch } from "@/lib/matches/egypt";
 
 export default async function AppLayout({
@@ -35,6 +36,10 @@ export default async function AppLayout({
           />
         </div>
       </header>
+
+      {/* Google-Sports-style live pill — auto-shows under the bar when a match
+          is in play, hidden otherwise. Self-contained client component. */}
+      <LiveIsland />
 
       {/* Egypt match-day hype — only renders on the day of an Egypt game. */}
       {egyptMatch && <EgyptHype match={egyptMatch} />}
