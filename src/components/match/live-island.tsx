@@ -21,6 +21,7 @@ interface Live {
   awayScore: number;
   clock: string;
   completed: boolean;
+  matchId: string | null;
 }
 
 export function LiveIsland() {
@@ -67,7 +68,7 @@ export function LiveIsland() {
           {matches.map((m) => (
             <Link
               key={`${m.home}-${m.away}`}
-              href="/matches"
+              href={m.matchId ? `/matches/${m.matchId}` : "/matches"}
               className="group flex items-center gap-3 rounded-full border border-live/40 bg-background/90 px-3 py-1.5 shadow-sm backdrop-blur-lg transition-colors hover:border-live"
             >
               <span className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-live">

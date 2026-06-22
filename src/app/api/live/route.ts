@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { getLiveMatches } from "@/lib/matches/queries";
+import { teamCodeOf } from "@/lib/football/team-ids";
 
 /**
  * Live-score overlay for the match page. Read-only, decoupled from the cron.
@@ -23,6 +25,7 @@ interface LiveMatch {
   clock: string; // "60'"
   period: number;
   completed: boolean; // ESPN says full-time — the stale-LIVE tiebreaker signal
+  matchId: string | null; // our DB match id (resolved by FIFA code), for deep-linking
 }
 
 export const revalidate = 30; // shared server cache window
@@ -35,6 +38,21 @@ export async function GET() {
     });
     if (!res.ok) throw new Error(`espn ${res.status}`);
     const data = await res.json();
+
+    // DB live matches, keyed by sorted FIFA-code pair, to deep-link each pill
+    // to its match page. Cheap (one query per 30s cache window). Fails soft.
+    // Key by the FIFA-code pair derived from the DB *team names* (the stored
+    // home_code/away_code are ISO-2 flag codes, not FIFA codes — different space).
+    const dbById = new Map<string, string>();
+    try {
+      for (const m of await getLiveMatches()) {
+        const hc = teamCodeOf(m.homeTeam);
+        const ac = teamCodeOf(m.awayTeam);
+        if (hc && ac) dbById.set([hc, ac].sort().join("-"), m.id);
+      }
+    } catch {
+      /* no deep-link; pills still link to /matches */
+    }
 
     const matches: LiveMatch[] = [];
     for (const e of data?.events ?? []) {
@@ -49,14 +67,21 @@ export async function GET() {
       const home = c.find((x: { homeAway: string }) => x.homeAway === "home");
       const away = c.find((x: { homeAway: string }) => x.homeAway === "away");
       if (!home || !away) continue;
+      const homeName = home.team?.displayName ?? "";
+      const awayName = away.team?.displayName ?? "";
+      const hc = teamCodeOf(homeName);
+      const ac = teamCodeOf(awayName);
+      const matchId =
+        hc && ac ? (dbById.get([hc, ac].sort().join("-")) ?? null) : null;
       matches.push({
-        home: home.team?.displayName ?? "",
-        away: away.team?.displayName ?? "",
+        home: homeName,
+        away: awayName,
         homeScore: Number(home.score) || 0,
         awayScore: Number(away.score) || 0,
         clock: st.displayClock ?? "",
         period: st.period ?? 0,
         completed: Boolean(st.type?.completed),
+        matchId,
       });
     }
     return NextResponse.json({ matches });
