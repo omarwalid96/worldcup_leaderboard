@@ -101,7 +101,13 @@ export function MatchCard({
 
   // Picks are visible once the match has locked OR the cron marked it live/finished.
   const showPicks = !isUpcoming || kickedOff;
+  // `tappable` = the predict-CTA state (drives the gold hover + press anim).
   const tappable = isUpcoming && predictable && !kickedOff;
+  // `linkable` = the whole card opens the detail page. True whenever there's a
+  // detail page worth seeing: an editable upcoming match, OR a live/finished one
+  // (score, full league picks, ESPN goals+cards timeline). The League-picks
+  // expander stops propagation, so it still toggles without navigating.
+  const linkable = tappable || isLive || isFinished;
 
   const inner = (
     <>
@@ -214,10 +220,11 @@ export function MatchCard({
   const baseClass = cn(
     "group relative block rounded-2xl border bg-card/70 p-4 backdrop-blur transition-colors",
     tappable && "hover:border-gold/50",
+    linkable && !tappable && "hover:border-border",
     isLive && "border-live/40",
   );
 
-  if (tappable) {
+  if (linkable) {
     return (
       <motion.div
         whileTap={{ scale: 0.97 }}
