@@ -8,6 +8,7 @@ import { FriendsPicks } from "@/components/match/friends-picks";
 import { MatchAdmin } from "@/components/admin/match-admin";
 import { LiveRefresher } from "@/components/match/live-refresher";
 import { LiveOverlay } from "@/components/match/live-overlay";
+import { MatchEvents } from "@/components/match/match-events";
 import { requireProfile } from "@/lib/auth/session";
 import { getMatchForPrediction, getMatchPredictions } from "@/lib/predictions/queries";
 import { isPredictable } from "@/lib/time/usday";
@@ -84,6 +85,15 @@ export default async function PredictPage({
       {/* Live score + ticking clock from ESPN (display only, fails soft). */}
       {match.status === "live" && (
         <LiveOverlay homeTeam={match.homeTeam} awayTeam={match.awayTeam} />
+      )}
+
+      {/* Goals + cards timeline from ESPN (live + recent finished; fails soft). */}
+      {match.status !== "scheduled" && (
+        <MatchEvents
+          homeTeam={match.homeTeam}
+          awayTeam={match.awayTeam}
+          live={match.status === "live"}
+        />
       )}
 
       {/* Live countdown to the lock — coarse until the final 10 min, then a
