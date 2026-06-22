@@ -1,8 +1,9 @@
 import "server-only";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { matches } from "@/db/schema";
 import { getFootballProvider } from "./index";
+import { fetchMatchEvents } from "./espn";
 
 export interface SyncSummary {
   fixturesSeen: number;
@@ -92,6 +93,33 @@ export async function syncMatches(): Promise<SyncSummary> {
     liveMerged: scoresUpdated, // live scores arrive via the same fixtures fetch
     lockedNow,
   };
+}
+
+/**
+ * Snapshot the goals/cards timeline from ESPN for finished matches that don't
+ * have one stored yet, so they keep their timeline after aging off ESPN's
+ * scoreboard. Idempotent (only fills `events IS NULL`); fails soft per match —
+ * a null fetch (ESPN down / aged off) just leaves it for a later run. Display
+ * only; never touches scores/grading. Returns how many matches it stored.
+ */
+export async function persistMatchEvents(): Promise<number> {
+  const pending = await db
+    .select({
+      id: matches.id,
+      homeTeam: matches.homeTeam,
+      awayTeam: matches.awayTeam,
+    })
+    .from(matches)
+    .where(and(eq(matches.status, "finished"), isNull(matches.events)));
+
+  let stored = 0;
+  for (const m of pending) {
+    const events = await fetchMatchEvents(m.homeTeam, m.awayTeam);
+    if (events === null) continue; // not on ESPN right now — retry next run
+    await db.update(matches).set({ events }).where(eq(matches.id, m.id));
+    stored++;
+  }
+  return stored;
 }
 
 /**

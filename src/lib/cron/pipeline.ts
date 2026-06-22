@@ -1,5 +1,9 @@
 import "server-only";
-import { syncMatches, markInPlayLive } from "@/lib/football/sync";
+import {
+  syncMatches,
+  markInPlayLive,
+  persistMatchEvents,
+} from "@/lib/football/sync";
 import {
   gradeFinishedMatches,
   snapshotPointsHistory,
@@ -12,6 +16,7 @@ export interface PipelineResult {
   sync: Awaited<ReturnType<typeof syncMatches>>;
   markedLive: number;
   grading: Awaited<ReturnType<typeof gradeFinishedMatches>>;
+  eventsStored: number;
   durationMs: number;
 }
 
@@ -32,6 +37,9 @@ export async function runPipeline(): Promise<PipelineResult> {
   const markedLive = await markInPlayLive();
   const grading = await gradeFinishedMatches();
   await snapshotPointsHistory();
+  // Snapshot goals/cards for matches that just finished, so the timeline
+  // survives after ESPN drops them. Fails soft; never blocks the pipeline.
+  const eventsStored = await persistMatchEvents();
   // Fire push notifications after grading; failures must not break the pipeline.
   await sendGradingNotifications(grading.exactHitUserIds, grading.affectedUserIds);
 
@@ -48,6 +56,7 @@ export async function runPipeline(): Promise<PipelineResult> {
     sync,
     markedLive,
     grading,
+    eventsStored,
     durationMs: Date.now() - start,
   };
 }

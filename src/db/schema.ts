@@ -114,6 +114,11 @@ export const matches = pgTable(
     wentToPens: boolean("went_to_pens").notNull().default(false),
     pensHome: integer("pens_home"), // actual shootout score
     pensAway: integer("pens_away"),
+    // Goals + cards timeline (MatchEvent[]) snapshotted from ESPN once a match
+    // finishes, so old matches keep their timeline after they age off ESPN's
+    // scoreboard. Null = not yet captured; the /api/match-events route falls
+    // back to a live ESPN fetch. Display only — never used for grading.
+    events: jsonb("events").$type<import("@/lib/football/espn").MatchEvent[]>(),
     lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
   },
   (t) => [
