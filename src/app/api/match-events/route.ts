@@ -19,6 +19,7 @@ export interface MatchEvent {
   minute: string; // "4'", "45'+2'"
   kind: "goal" | "own-goal" | "penalty-goal" | "yellow" | "red";
   team: string;
+  side: "home" | "away"; // which side of the UI to render on
   player: string;
   assist: string | null;
 }
@@ -39,7 +40,9 @@ function classify(e: EspnKeyEvent): MatchEvent["kind"] | null {
   const text = (e.text ?? "").toLowerCase();
   if (t === "yellow-card") return "yellow";
   if (t === "red-card") return "red";
-  if (t === "goal" || e.type?.type === "goal") {
+  // ESPN tags goals as "goal", "goal---header", "goal---penalty", etc. — match
+  // the prefix so headers/volleys aren't dropped. Text decides og/pen.
+  if (t.startsWith("goal")) {
     if (text.includes("own goal")) return "own-goal";
     if (text.includes("penalty")) return "penalty-goal";
     return "goal";
@@ -96,11 +99,18 @@ export async function GET(req: Request) {
         .map((p) => p.athlete?.displayName)
         .filter((n): n is string => Boolean(n));
       if (players.length === 0) continue;
+      // Place the event on the side whose code matches the event's team. An
+      // own goal counts for the OTHER side's score, so flip it.
+      const eventCode = teamCodeOf(e.team?.displayName ?? "");
+      if (eventCode !== wantHome && eventCode !== wantAway) continue; // unknown
+      let side: "home" | "away" = eventCode === wantHome ? "home" : "away";
+      if (kind === "own-goal") side = side === "home" ? "away" : "home";
       const isGoal = kind === "goal" || kind === "own-goal" || kind === "penalty-goal";
       events.push({
         minute: e.clock?.displayValue ?? "",
         kind,
         team: e.team?.displayName ?? "",
+        side,
         player: players[0],
         assist: isGoal && players[1] ? players[1] : null,
       });
