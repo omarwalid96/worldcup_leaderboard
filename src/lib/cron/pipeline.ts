@@ -9,6 +9,7 @@ import {
   snapshotPointsHistory,
 } from "@/lib/scoring/grade";
 import { sendGradingNotifications } from "@/lib/notifications/grading";
+import { sendPushToAll } from "@/lib/notifications/send";
 import { recordCronRun } from "./log";
 
 export interface PipelineResult {
@@ -34,6 +35,24 @@ export async function runPipeline(): Promise<PipelineResult> {
   const start = Date.now();
 
   const sync = await syncMatches();
+
+  // League-wide goal alerts (OS push to every subscriber). Fails soft so a
+  // push problem never breaks the pipeline. One notification per goal detected.
+  try {
+    for (const a of sync.alerts) {
+      await sendPushToAll(
+        {
+          title: `GOAL! ${a.homeTeam} ${a.homeScore}–${a.awayScore} ${a.awayTeam} ⚽`,
+          body: `${a.homeTeam} vs ${a.awayTeam} — tap for the live timeline.`,
+          url: `/matches/${a.matchId}`,
+        },
+        "liveMatch",
+      );
+    }
+  } catch (err) {
+    console.warn("[pipeline] goal alerts failed:", err);
+  }
+
   const markedLive = await markInPlayLive();
   const grading = await gradeFinishedMatches();
   await snapshotPointsHistory();

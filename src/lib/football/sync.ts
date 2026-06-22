@@ -5,12 +5,24 @@ import { matches } from "@/db/schema";
 import { getFootballProvider } from "./index";
 import { fetchMatchEvents } from "./espn";
 
+/** A score/status change worth a league-wide push (goal, kickoff, full time). */
+export interface MatchAlert {
+  kind: "goal" | "kickoff" | "fulltime";
+  homeTeam: string;
+  awayTeam: string;
+  homeScore: number;
+  awayScore: number;
+  matchId: string;
+}
+
 export interface SyncSummary {
   fixturesSeen: number;
   statusChanges: number;
   scoresUpdated: number;
   liveMerged: number;
   lockedNow: number;
+  /** Events detected this tick, for the pipeline to push. */
+  alerts: MatchAlert[];
 }
 
 /**
@@ -35,6 +47,8 @@ export async function syncMatches(): Promise<SyncSummary> {
       id: matches.id,
       externalId: matches.externalId,
       status: matches.status,
+      homeTeam: matches.homeTeam,
+      awayTeam: matches.awayTeam,
       homeScore: matches.homeScore,
       awayScore: matches.awayScore,
       kickoffUtc: matches.kickoffUtc,
@@ -43,6 +57,7 @@ export async function syncMatches(): Promise<SyncSummary> {
   const byExt = new Map(existing.map((m) => [m.externalId, m]));
 
   let kickoffsUpdated = 0;
+  const alerts: MatchAlert[] = [];
 
   for (const f of fixtures) {
     const cur = byExt.get(f.externalId);
@@ -80,6 +95,26 @@ export async function syncMatches(): Promise<SyncSummary> {
       if (scoreChanged) scoresUpdated++;
       if (statusChanged) statusChanges++;
       if (kickoffChanged) kickoffsUpdated++;
+
+      // Goal alert = total goals went up (ignore downward corrections). Only
+      // while the match is live/just-finished, never a pre-kickoff stray score.
+      const nh = f.homeScore ?? 0;
+      const na = f.awayScore ?? 0;
+      const prev = (cur.homeScore ?? 0) + (cur.awayScore ?? 0);
+      if (
+        scoreChanged &&
+        nh + na > prev &&
+        (f.status === "live" || f.status === "finished")
+      ) {
+        alerts.push({
+          kind: "goal",
+          homeTeam: cur.homeTeam,
+          awayTeam: cur.awayTeam,
+          homeScore: nh,
+          awayScore: na,
+          matchId: cur.id,
+        });
+      }
     }
   }
   void kickoffsUpdated; // ponytail: counted for parity; not surfaced in summary
@@ -92,6 +127,7 @@ export async function syncMatches(): Promise<SyncSummary> {
     scoresUpdated,
     liveMerged: scoresUpdated, // live scores arrive via the same fixtures fetch
     lockedNow,
+    alerts,
   };
 }
 

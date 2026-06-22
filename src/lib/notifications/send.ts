@@ -1,6 +1,6 @@
 import "server-only";
 import webpush from "web-push";
-import { eq } from "drizzle-orm";
+import { eq, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles } from "@/db/schema";
 import { requireEnv } from "@/lib/env";
@@ -26,6 +26,7 @@ interface NotifPrefs {
   rankClimb?: boolean;
   gameChallenge?: boolean;
   nudge?: boolean;
+  liveMatch?: boolean;
 }
 
 let vapidConfigured = false;
@@ -114,4 +115,24 @@ export async function sendPushToUsers(
 ): Promise<void> {
   if (userIds.length === 0) return;
   await Promise.all(userIds.map((id) => sendPushToUser(id, payload, prefKey)));
+}
+
+/**
+ * Broadcast a push to every user with a stored subscription. Used for
+ * league-wide live-match events (a goal is the same news for everyone).
+ * Per-user pref gating + dead-sub cleanup happen in sendPushToUser.
+ */
+export async function sendPushToAll(
+  payload: PushPayload,
+  prefKey?: keyof NotifPrefs,
+): Promise<void> {
+  const subscribed = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(isNotNull(profiles.pushSubscription));
+  await sendPushToUsers(
+    subscribed.map((p) => p.id),
+    payload,
+    prefKey,
+  );
 }
