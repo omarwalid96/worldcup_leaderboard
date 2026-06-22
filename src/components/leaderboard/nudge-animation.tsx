@@ -19,11 +19,17 @@ const D = NUDGE_DURATION_MS / 1000; // seconds
  */
 export function NudgeAnimation({
   fromName,
+  toName,
   onDone,
 }: {
   fromName: string;
+  /** Set when *you* are the whacker → banner reads "You whacked {toName}!". */
+  toName?: string;
   onDone: () => void;
 }) {
+  const banner = toName
+    ? `💥 You whacked ${toName}!`
+    : `💥 ${fromName} whacked you!`;
   useEffect(() => {
     const reduced =
       typeof window !== "undefined" &&
@@ -106,7 +112,7 @@ export function NudgeAnimation({
         aria-hidden
       >
         <span className="rounded-2xl bg-background/80 px-5 py-3 text-center font-display text-2xl font-bold text-gold shadow-2xl backdrop-blur">
-          💥 {fromName} whacked you!
+          {banner}
         </span>
       </motion.div>
     </div>

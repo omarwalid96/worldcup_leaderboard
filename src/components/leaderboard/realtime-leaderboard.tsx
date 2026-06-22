@@ -158,6 +158,13 @@ export function RealtimeLeaderboard({
       {nudge && (
         <NudgeAnimation
           fromName={nudge.fromName}
+          // When *I* threw the whack, name the target instead of saying "you".
+          toName={
+            nudge.fromUserId === currentUserId
+              ? (rows.find((r) => r.userId === nudge.toUserId)?.displayName ??
+                "them")
+              : undefined
+          }
           onDone={() => {
             setNudge(null);
             void markNudgesSeen(leagueId);
