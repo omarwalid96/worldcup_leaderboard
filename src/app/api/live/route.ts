@@ -3,9 +3,9 @@ import { NextResponse } from "next/server";
 /**
  * Live-score overlay for the match page. Read-only, decoupled from the cron.
  *
- * Smart polling: this server route caches ESPN's WC scoreboard for 60s, so N
- * concurrent users trigger at most ONE upstream fetch per minute (Next's fetch
- * cache fans the result out to all of them). 100 users → still ≤60 ESPN
+ * Smart polling: this server route caches ESPN's WC scoreboard for 30s, so N
+ * concurrent users trigger at most ONE upstream fetch per 30s (Next's fetch
+ * cache fans the result out to all of them). 100 users → still ≤120 ESPN
  * hits/hour. ESPN is undocumented, so every read fails SOFT: any error returns
  * an empty overlay and the page keeps showing the DB scores the cron wrote.
  *
@@ -25,12 +25,12 @@ interface LiveMatch {
   completed: boolean; // ESPN says full-time — the stale-LIVE tiebreaker signal
 }
 
-export const revalidate = 60; // shared server cache window
+export const revalidate = 30; // shared server cache window
 
 export async function GET() {
   try {
     const res = await fetch(ESPN, {
-      next: { revalidate: 60 },
+      next: { revalidate: 30 },
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) throw new Error(`espn ${res.status}`);

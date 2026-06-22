@@ -5,8 +5,8 @@ import { teamCodeOf } from "@/lib/football/team-ids";
 
 /**
  * ESPN live overlay for one match, looked up by FIFA team code. Polls /api/live
- * every 60s while the tab is visible. /api/live caches ESPN server-side for 60s,
- * so any number of cards/pages sharing this hook cause ≤1 upstream fetch/min.
+ * every 20s while the tab is visible. /api/live caches ESPN server-side for 30s,
+ * so any number of cards/pages sharing this hook cause ≤2 upstream fetches/min.
  * Returns null when ESPN has nothing live for this match (page/card falls back
  * to DB values). Display only.
  */
@@ -39,7 +39,7 @@ export function useLiveMatch(
         // each poll (else it serves the cached body and the minute never
         // updates until a navigation). ESPN is still shielded by the route's
         // own 60s server cache, so this adds no upstream load.
-        const res = await fetch(`/api/live?t=${Math.floor(Date.now() / 30_000)}`, {
+        const res = await fetch(`/api/live?t=${Math.floor(Date.now() / 15_000)}`, {
           cache: "no-store",
         });
         const data: { matches?: LiveMatch[] } = await res.json();
@@ -53,9 +53,9 @@ export function useLiveMatch(
       }
     };
     poll();
-    // Poll every 30s so the minute tracks closely. ESPN is unaffected — the
-    // /api/live route caches it 60s server-side, so 2 polls share 1 fetch.
-    const id = setInterval(poll, 30_000);
+    // Poll every 20s so the minute tracks closely. ESPN is unaffected — the
+    // /api/live route caches it 30s server-side, so polls share that fetch.
+    const id = setInterval(poll, 20_000);
     return () => {
       alive = false;
       clearInterval(id);
