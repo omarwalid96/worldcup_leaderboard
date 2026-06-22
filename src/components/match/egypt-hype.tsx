@@ -134,7 +134,7 @@ export function EgyptHype({ match }: { match: EgyptMatch }) {
           <p className="text-[11px] font-medium text-white/80">
             {finished ? (
               won ? (
-                "FULL TIME · A win for Masr 🎉"
+                "FULL TIME · A win for EGYPT 🎉"
               ) : (
                 "FULL TIME"
               )
