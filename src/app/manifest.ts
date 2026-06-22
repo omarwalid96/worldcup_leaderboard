@@ -6,7 +6,10 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Eznii Ya Dawly",
     description:
       "Predict scorelines, climb the leaderboard, win bragging rights.",
-    start_url: "/dashboard",
+    // start_url must NOT redirect: a logged-out PWA launch on /dashboard 307s to
+    // /login, and iOS drops the launch splash when the start URL redirects. "/"
+    // is always 200 and links onward to login/dashboard. ponytail: "/" exists.
+    start_url: "/",
     display: "standalone",
     orientation: "portrait",
     background_color: "#0A0A0B",
