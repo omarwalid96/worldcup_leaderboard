@@ -3,12 +3,11 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowLeft, MapPin } from "lucide-react";
 import { ScorePicker } from "@/components/match/score-picker";
-import { TeamFlag } from "@/components/match/team-flag";
 import { KickoffTime, PredictionCountdown } from "@/components/match/kickoff-time";
 import { FriendsPicks } from "@/components/match/friends-picks";
 import { MatchAdmin } from "@/components/admin/match-admin";
 import { LiveRefresher } from "@/components/match/live-refresher";
-import { LiveOverlay } from "@/components/match/live-overlay";
+import { FieldHero } from "@/components/match/field-hero";
 import { MatchEvents } from "@/components/match/match-events";
 import { requireProfile } from "@/lib/auth/session";
 import { getMatchForPrediction, getMatchPredictions } from "@/lib/predictions/queries";
@@ -83,31 +82,17 @@ export default async function PredictPage({
         </div>
       </div>
 
-      {/* Final score at the top once finished (read-only scoreboard). */}
-      {isGraded && match.homeScore != null && match.awayScore != null && (
-        <div className="flex flex-col items-center gap-1 rounded-2xl border border-gold/30 bg-gold/5 px-6 py-5">
-          <span className="text-xs font-medium uppercase tracking-wide text-gold">
-            Full time
-          </span>
-          <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-4">
-            <div className="flex flex-col items-center gap-2 text-center">
-              <TeamFlag code={match.homeCode} alt={match.homeTeam} size={40} />
-              <span className="text-sm font-semibold">{match.homeTeam}</span>
-            </div>
-            <span className="font-numeric text-5xl font-bold tabular-nums">
-              {match.homeScore}<span className="px-2 text-muted-foreground">–</span>{match.awayScore}
-            </span>
-            <div className="flex flex-col items-center gap-2 text-center">
-              <TeamFlag code={match.awayCode} alt={match.awayTeam} size={40} />
-              <span className="text-sm font-semibold">{match.awayTeam}</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Live score + ticking clock from ESPN (display only, fails soft). */}
-      {match.status === "live" && (
-        <LiveOverlay homeTeam={match.homeTeam} awayTeam={match.awayTeam} />
+      {/* Football-pitch hero: live (ESPN score/clock) or finished (final score). */}
+      {(match.status === "live" || isGraded) && (
+        <FieldHero
+          homeTeam={match.homeTeam}
+          awayTeam={match.awayTeam}
+          homeCode={match.homeCode}
+          awayCode={match.awayCode}
+          dbHome={match.homeScore}
+          dbAway={match.awayScore}
+          status={match.status === "live" ? "live" : "finished"}
+        />
       )}
 
       {/* Goals + cards timeline from ESPN (live + recent finished; fails soft). */}
