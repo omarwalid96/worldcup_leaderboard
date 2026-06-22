@@ -141,12 +141,26 @@ DB / admin scripts (all load `.env.local`): see "Scripts" below.
 - `runPipeline` writes a `cron_log` heartbeat (`src/lib/cron/log.ts`) so you can
   confirm the cron is firing. `standings.last_synced_at` only bumps when a score
   actually changes — a stale value is NOT proof the cron is down.
-- **Live UI**: `LiveRefresher` (`src/components/match/live-refresher.tsx`) is
-  mounted only when a match is `live` and `router.refresh()`es every 5 min from
-  the visible tab — it re-runs the page's server query (our DB), never the
-  football API. While a match is live, the "League picks" list shows
-  **provisional** points (`+3/+1/0`) computed client-side from the current score
-  via `basePoints()`; finished matches show the real graded points.
+- **Live UI** (display-only, decoupled from the cron — never grades):
+  - `LiveRefresher` (`src/components/match/live-refresher.tsx`) mounts only on a
+    `live` match and `router.refresh()`es from the visible tab — re-runs the
+    page's server query (our DB), never the football API. While live, the
+    "League picks" list shows **provisional** points (`+3/+1/0`) from the current
+    score via `basePoints()`; finished matches show the real graded points.
+  - `/api/live` is a **server-cached (30s) ESPN proxy** (`fifa.world`
+    scoreboard): N users → ≤1 upstream fetch / 30s, fails soft to empty. Clients
+    poll it ~20s. `useLiveMatch` (`use-live-match.ts`) feeds the per-match score/
+    clock; ESPN is the *preferred, redundant* live source over wc26 and the
+    `completed` flag is the tiebreaker that unsticks a stale-LIVE match (see
+    memory). Providers reconcile by **FIFA code** via `teamCodeOf`
+    (`src/lib/football/team-ids.ts`) — NOT fuzzy names — and `/api/live` uses it
+    to attach our DB `matchId` so the live pill can deep-link.
+  - `FieldHero` (`field-hero.tsx`) — CSS-drawn football pitch behind the flags +
+    score on the match detail page (live + finished). `LiveIsland`
+    (`live-island.tsx`) — Google-Sports-style pill under the header on every app
+    page, links to the live match. `MatchEvents` (`match-events.tsx`) — goals/
+    cards timeline (newest first), from `/api/match-events`; persisted in
+    `matches.events` jsonb (migration `0015`).
 
 ## Auth
 - Preset username + password (no email/OAuth). Username → synthetic email
@@ -154,6 +168,17 @@ DB / admin scripts (all load `.env.local`): see "Scripts" below.
   Server Actions in `src/lib/auth/actions.ts` — they call
   `revalidatePath("/", "layout")` before redirect to clear the Router Cache
   (fixes a logout→re-login client error). Manage users with the `users:*` scripts.
+
+## Realtime leaderboard + nudges ("whack")
+- `RealtimeLeaderboard` (`src/components/leaderboard/realtime-leaderboard.tsx`)
+  subscribes to a Supabase Realtime channel per league: standings updates re-rank
+  live, and members can **nudge** ("whack") each other — a full-screen cartoon-
+  hammer animation (`nudge-animation.tsx`). `sendNudge` (server action,
+  rate-limited) inserts a `nudges` row (migration `0013`) + broadcasts; the target
+  sees it live if present and **replays unseen nudges on next open**
+  (`markNudgesSeen`). The animation copy is perspective-aware: pass `toName` →
+  "You whacked X!" for the sender, else "X whacked you!" for the receiver.
+- AI-summary card has a `summary_comments` thread (migration `0014`).
 
 ## Key directories
 - `src/app/(app)/*` — authenticated pages (dashboard, matches, matches/[id],
@@ -164,8 +189,9 @@ DB / admin scripts (all load `.env.local`): see "Scripts" below.
 - `src/components/{match,leaderboard,leagues,profile,avatar,layout,
   notifications,ui}`.
 - `drizzle/*.sql` — migrations: `0000` schema, `0001` RLS + auth trigger +
-  cross-schema FK, then feature migrations through `0012` (business card, quote,
-  games `0010`, sponsors `0011`, ai_summaries `0012`). NOTE: filenames are applied
+  cross-schema FK, then feature migrations through `0015` (business card `0008`,
+  quote `0009`, games `0010`, sponsors `0011`, ai_summaries `0012`, nudges `0013`,
+  summary_comments `0014`, match_events `0015`). NOTE: filenames are applied
   **lexically** by `scripts/migrate.ts` (not drizzle-kit), and there are duplicate
   `0006_*` names (harmless — order within a number doesn't matter here). Each is
   idempotent (`IF NOT EXISTS` / guarded). RLS lives only in SQL, never in `schema.ts`.
