@@ -71,15 +71,21 @@ export function MatchCard({
   predictable?: boolean;
 }) {
   const { status, prediction } = match;
-  const isLive = status === "live";
-  const isFinished = status === "finished";
   const isUpcoming = status === "scheduled";
 
-  // While live, prefer ESPN's score+minute (fresher than the cron's DB write).
-  // Falls back to the DB values if ESPN has nothing for this match.
-  const live = useLiveMatch(match.homeTeam, match.awayTeam, isLive);
+  // While the DB says live, prefer ESPN's score+minute (fresher than the cron's
+  // DB write). Falls back to DB values if ESPN has nothing for this match.
+  const live = useLiveMatch(match.homeTeam, match.awayTeam, status === "live");
   const homeScore = live ? live.homeScore : match.homeScore;
   const awayScore = live ? live.awayScore : match.awayScore;
+
+  // ESPN's full-time flag is terminal: if ESPN says completed, show Full time
+  // even while the DB is still stuck `live` (stale wc26 feed / cron lag). This
+  // stops the pill flapping live↔finished. The cron still does the real grade;
+  // this only fixes display. Never the reverse — ESPN never re-opens a match
+  // the DB already marked finished.
+  const isFinished = status === "finished" || (status === "live" && live?.completed === true);
+  const isLive = status === "live" && !isFinished;
 
   const homeWon = isFinished && (homeScore ?? 0) > (awayScore ?? 0);
   const awayWon = isFinished && (awayScore ?? 0) > (homeScore ?? 0);

@@ -35,7 +35,13 @@ export function useLiveMatch(
     const poll = async () => {
       if (document.visibilityState !== "visible") return;
       try {
-        const res = await fetch("/api/live");
+        // no-store + cache-bust: the browser must actually re-hit our route
+        // each poll (else it serves the cached body and the minute never
+        // updates until a navigation). ESPN is still shielded by the route's
+        // own 60s server cache, so this adds no upstream load.
+        const res = await fetch(`/api/live?t=${Math.floor(Date.now() / 30_000)}`, {
+          cache: "no-store",
+        });
         const data: { matches?: LiveMatch[] } = await res.json();
         const hit = (data.matches ?? []).find(
           (x) =>
@@ -47,7 +53,9 @@ export function useLiveMatch(
       }
     };
     poll();
-    const id = setInterval(poll, 60_000);
+    // Poll every 30s so the minute tracks closely. ESPN is unaffected — the
+    // /api/live route caches it 60s server-side, so 2 polls share 1 fetch.
+    const id = setInterval(poll, 30_000);
     return () => {
       alive = false;
       clearInterval(id);

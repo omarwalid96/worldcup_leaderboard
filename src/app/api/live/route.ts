@@ -39,7 +39,11 @@ export async function GET() {
     const matches: LiveMatch[] = [];
     for (const e of data?.events ?? []) {
       const st = e?.status;
-      if (st?.type?.state !== "in") continue; // live only
+      const state = st?.type?.state;
+      // Emit in-play AND just-finished matches: a `post`/completed entry is how
+      // the client learns ESPN says full-time while our DB is still stuck
+      // `live` (stale wc26 feed). Skip only `pre` (not started yet).
+      if (state !== "in" && state !== "post") continue;
       const comp = e?.competitions?.[0];
       const c = comp?.competitors ?? [];
       const home = c.find((x: { homeAway: string }) => x.homeAway === "home");
