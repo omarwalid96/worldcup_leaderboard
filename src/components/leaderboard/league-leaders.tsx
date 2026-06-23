@@ -133,7 +133,7 @@ export function LeagueLeaders({ data }: { data: LeagueLeaders }) {
                 {l.displayName}
               </Link>
               {l.quote && (
-                <p className="max-w-[12rem] text-center text-base italic leading-snug text-muted-foreground">
+                <p className="max-w-[12rem] text-center text-base font-semibold italic leading-snug text-foreground">
                   &ldquo;{l.quote}&rdquo;
                 </p>
               )}
