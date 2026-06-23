@@ -178,6 +178,11 @@ export interface LineupPlayer {
   position: string; // abbreviation: G/D/M/F
   starter: boolean;
   subbedOut: boolean;
+  subbedIn: boolean;
+  /** 1..11 ordinal within the formation (GK=1); null for bench. */
+  formationPlace: number | null;
+  /** Live ESPN jersey image URL (not stored as a file; URL only). */
+  jerseyHref: string | null;
 }
 
 export interface TeamLineup {
@@ -221,9 +226,15 @@ type EspnRoster = {
   roster?: Array<{
     starter?: boolean;
     subbedOut?: boolean;
+    subbedIn?: boolean;
     jersey?: string;
+    formationPlace?: string;
     position?: { abbreviation?: string };
-    athlete?: { displayName?: string; shortName?: string };
+    athlete?: {
+      displayName?: string;
+      shortName?: string;
+      jerseyImages?: Array<{ href?: string; rel?: string[] }>;
+    };
   }>;
 };
 
@@ -253,13 +264,22 @@ function parseLineups(rosters: EspnRoster[]): TeamLineup[] {
     const r = rosters.find((x) => x.homeAway === side);
     if (!r) continue;
     const players: LineupPlayer[] = (r.roster ?? [])
-      .map((p) => ({
-        name: p.athlete?.shortName ?? p.athlete?.displayName ?? "",
-        jersey: p.jersey ?? "",
-        position: p.position?.abbreviation ?? "",
-        starter: Boolean(p.starter),
-        subbedOut: Boolean(p.subbedOut),
-      }))
+      .map((p) => {
+        const place = Number(p.formationPlace);
+        const jersey = p.athlete?.jerseyImages?.find((j) =>
+          (j.rel ?? []).includes("default"),
+        );
+        return {
+          name: p.athlete?.shortName ?? p.athlete?.displayName ?? "",
+          jersey: p.jersey ?? "",
+          position: p.position?.abbreviation ?? "",
+          starter: Boolean(p.starter),
+          subbedOut: Boolean(p.subbedOut),
+          subbedIn: Boolean(p.subbedIn),
+          formationPlace: Number.isFinite(place) && place > 0 ? place : null,
+          jerseyHref: jersey?.href ?? p.athlete?.jerseyImages?.[0]?.href ?? null,
+        };
+      })
       .filter((p) => p.name)
       // starters first, then bench; ESPN's order is already sensible within each
       .sort((a, b) => Number(b.starter) - Number(a.starter));

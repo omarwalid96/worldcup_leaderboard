@@ -27,6 +27,9 @@ interface LineupPlayer {
   position: string;
   starter: boolean;
   subbedOut: boolean;
+  subbedIn: boolean;
+  formationPlace: number | null;
+  jerseyHref: string | null;
 }
 interface TeamLineup {
   side: "home" | "away";
@@ -218,47 +221,151 @@ function TeamStats({
 }
 
 function Lineups({ lineups }: { lineups: TeamLineup[] }) {
+  // Per-team tabs (like ESPN): pick a side, see its pitch + bench.
+  const first = lineups[0]?.side ?? "home";
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      {lineups.map((l) => (
-        <div key={l.side} className="flex flex-col gap-1.5">
-          <div className="flex items-baseline justify-between">
-            <span className="text-sm font-semibold">{l.team}</span>
+    <Tabs defaultValue={first} className="gap-3">
+      <TabsList className="w-full">
+        {lineups.map((l) => (
+          <TabsTrigger key={l.side} value={l.side}>
+            {l.team}
             {l.formation && (
-              <span className="font-numeric text-xs text-muted-foreground">
+              <span className="ml-1.5 font-numeric text-xs text-muted-foreground">
                 {l.formation}
               </span>
             )}
-          </div>
-          <ul className="flex flex-col gap-0.5">
-            {l.players.map((p, i) => (
-              <li
-                key={`${p.jersey}-${i}`}
-                className={cn(
-                  "flex items-center gap-2 text-sm",
-                  !p.starter && "text-muted-foreground",
-                )}
-              >
-                <span className="w-5 shrink-0 text-right font-numeric tabular-nums text-xs text-muted-foreground">
-                  {p.jersey}
-                </span>
-                <span className="truncate">{p.name}</span>
-                {p.position && (
-                  <span className="ml-auto shrink-0 text-[10px] uppercase text-muted-foreground/70">
-                    {p.position}
-                  </span>
-                )}
-                {p.subbedOut && <span className="shrink-0 text-[10px]">🔻</span>}
-                {!p.starter && (
-                  <span className="shrink-0 text-[10px] text-muted-foreground/60">
-                    bench
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      {lineups.map((l) => (
+        <TabsContent key={l.side} value={l.side} className="flex flex-col gap-3">
+          <Pitch
+            formation={l.formation}
+            players={l.players.filter((p) => p.starter)}
+          />
+          <Bench players={l.players.filter((p) => !p.starter)} />
+        </TabsContent>
       ))}
+    </Tabs>
+  );
+}
+
+/**
+ * Rows of formationPlace ordinals, GK first then defense→attack, from a
+ * formation string. "4-3-3" → [[1],[2,3,4,5],[6,7,8],[9,10,11]]. Falls back to
+ * an even split of the outfielders if the string is missing/unparseable, so any
+ * shape still renders (a wing may sit a row off, but the bench list is exact).
+ */
+function formationRows(formation: string | null, count: number): number[][] {
+  const parts = (formation ?? "")
+    .split("-")
+    .map((n) => parseInt(n, 10))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  const rows: number[][] = [[1]]; // GK = place 1
+  const sum = parts.reduce((a, b) => a + b, 0);
+  if (parts.length > 0 && sum + 1 === count) {
+    let place = 2;
+    for (const n of parts) rows.push(Array.from({ length: n }, () => place++));
+  } else {
+    // Unknown/short formation → even split of the outfielders into ~3 lines.
+    const outfield = Array.from({ length: count - 1 }, (_, i) => i + 2);
+    const per = Math.ceil(outfield.length / 3);
+    for (let i = 0; i < outfield.length; i += per)
+      rows.push(outfield.slice(i, i + per));
+  }
+  return rows;
+}
+
+function Pitch({
+  formation,
+  players,
+}: {
+  formation: string | null;
+  players: LineupPlayer[];
+}) {
+  const byPlace = new Map(players.map((p) => [p.formationPlace, p]));
+  // Defense→attack from formationRows; render attack at the TOP of the pitch, so
+  // reverse to put the GK row at the bottom.
+  const rows = [...formationRows(formation, players.length)].reverse();
+
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-success/30 bg-gradient-to-b from-success/15 to-success/5 p-3">
+      {/* simple pitch markings */}
+      <div className="pointer-events-none absolute inset-x-6 top-1/2 h-px -translate-y-1/2 bg-white/15" />
+      <div className="pointer-events-none absolute left-1/2 top-1/2 size-14 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/15" />
+      <div className="relative flex flex-col gap-4 py-2">
+        {rows.map((row, ri) => (
+          <div key={ri} className="flex justify-around gap-2">
+            {row.map((place) => {
+              const p = byPlace.get(place);
+              if (!p) return <div key={place} className="w-14" />;
+              return <PitchPlayer key={place} p={p} />;
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PitchPlayer({ p }: { p: LineupPlayer }) {
+  return (
+    <div className="flex w-16 flex-col items-center gap-0.5 text-center">
+      <div className="relative">
+        {p.jerseyHref ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={p.jerseyHref}
+            alt=""
+            className="size-10 object-contain drop-shadow"
+            loading="lazy"
+          />
+        ) : (
+          <div className="flex size-10 items-center justify-center rounded-full bg-card font-numeric text-sm font-bold tabular-nums">
+            {p.jersey}
+          </div>
+        )}
+        {p.subbedOut && (
+          <span
+            className="absolute -right-1 -top-1 text-[10px]"
+            title="Substituted off"
+          >
+            🔻
+          </span>
+        )}
+      </div>
+      <span className="max-w-full truncate text-[11px] font-medium leading-tight">
+        {p.name}
+      </span>
+    </div>
+  );
+}
+
+function Bench({ players }: { players: LineupPlayer[] }) {
+  if (players.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Bench
+      </span>
+      <ul className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+        {players.map((p, i) => (
+          <li
+            key={`${p.jersey}-${i}`}
+            className="flex items-center gap-2 text-sm text-muted-foreground"
+          >
+            <span className="w-5 shrink-0 text-right font-numeric tabular-nums text-xs">
+              {p.jersey}
+            </span>
+            <span className="truncate">{p.name}</span>
+            {p.subbedIn && (
+              <span className="shrink-0 text-[10px]" title="Came on">
+                🔺
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

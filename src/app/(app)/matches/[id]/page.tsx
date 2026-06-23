@@ -1,14 +1,13 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ArrowLeft, MapPin } from "lucide-react";
+import { ArrowLeft, MapPin, BarChart3 } from "lucide-react";
 import { ScorePicker } from "@/components/match/score-picker";
 import { KickoffTime, PredictionCountdown } from "@/components/match/kickoff-time";
 import { FriendsPicks } from "@/components/match/friends-picks";
 import { MatchAdmin } from "@/components/admin/match-admin";
 import { LiveRefresher } from "@/components/match/live-refresher";
 import { FieldHero } from "@/components/match/field-hero";
-import { MatchExtras } from "@/components/match/match-extras";
 import { requireProfile } from "@/lib/auth/session";
 import { getMatchForPrediction, getMatchPredictions } from "@/lib/predictions/queries";
 import { isPredictable } from "@/lib/time/usday";
@@ -95,14 +94,18 @@ export default async function PredictPage({
         />
       )}
 
-      {/* Stats / Lineups / Timeline tabs from ESPN (live + recent finished;
-          fails soft, hides tabs with no data). */}
+      {/* Stats / lineups / timeline live on their own page so predictions stay
+          the focus here. Only relevant once the match has started. */}
       {match.status !== "scheduled" && (
-        <MatchExtras
-          homeTeam={match.homeTeam}
-          awayTeam={match.awayTeam}
-          live={match.status === "live"}
-        />
+        <Link
+          href={`/matches/${id}/stats`}
+          className="flex items-center justify-between rounded-xl border border-border/60 bg-card/50 px-4 py-3 text-sm font-medium transition-colors hover:bg-card"
+        >
+          <span className="inline-flex items-center gap-2">
+            <BarChart3 className="size-4 text-gold" /> Match stats &amp; lineups
+          </span>
+          <span className="text-muted-foreground">→</span>
+        </Link>
       )}
 
       {/* Live countdown to the lock — coarse until the final 10 min, then a
