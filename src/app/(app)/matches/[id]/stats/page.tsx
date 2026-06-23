@@ -75,7 +75,7 @@ export default async function MatchStatsPage({
           homeTeam={match.homeTeam}
           awayTeam={match.awayTeam}
           live={match.status === "live"}
-          show={["stats", "lineups"]}
+          show={["lineups", "stats", "players"]}
         />
       ) : (
         <p className="rounded-xl border border-border/60 bg-card/40 p-6 text-center text-sm text-muted-foreground">

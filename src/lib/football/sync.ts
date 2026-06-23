@@ -158,6 +158,7 @@ export async function persistMatchEvents(): Promise<number> {
           ${matches.gamecast} IS NULL
           OR ${matches.gamecast} #> '{lineups,0,players,0,formationPlace}' IS NULL
           OR NOT (${matches.gamecast} ? 'leaders')
+          OR NOT (${matches.gamecast} #> '{lineups,0,players,0}' ? 'rating')
         )`,
       ),
     );

@@ -191,6 +191,9 @@ export interface LineupPlayer {
   jerseyHref: string | null;
   /** This player's match stat line (curated; empty if none). */
   stats: PlayerStat[];
+  /** Estimated 1–10 match rating computed from the stats (see ratePlayer). Null
+   *  if the player has no stats (didn't feature). NOT an official ESPN rating. */
+  rating: number | null;
 }
 
 /** One "star performer" — a team leader in some stat category. */
@@ -276,6 +279,41 @@ const PLAYER_STATS: Array<[string, string]> = [
   ["saves", "Saves"],
   ["goalsConceded", "Conceded"],
 ];
+
+/**
+ * Estimated 1–10 match rating in the WhoScored/OneFootball style: start from a
+ * 6.0 "average" baseline and weight events by attacking influence — goals and
+ * assists heavily positive, shots/on-target/saves modestly so; fouls, cards,
+ * own goals and conceded goals negative. It's a transparent heuristic over the
+ * limited stats ESPN exposes (no xG / duels / passes-by-zone), NOT an official
+ * rating — surfaced labelled as an estimate. Returns null if the player has no
+ * stats (didn't play). References:
+ * https://www.whoscored.com/explanations ,
+ * https://onefootballsupport.zendesk.com/hc/en-us/articles/32452505281041
+ */
+export function ratePlayer(
+  raw: Array<{ name?: string; displayValue?: string }> | undefined,
+): number | null {
+  if (!raw || raw.length === 0) return null;
+  const n = (name: string) => {
+    const v = raw.find((s) => s.name === name)?.displayValue;
+    const x = v == null ? 0 : parseFloat(v);
+    return Number.isFinite(x) ? x : 0;
+  };
+  let r = 6.0;
+  r += n("totalGoals") * 1.2;
+  r += n("goalAssists") * 0.9;
+  r += n("shotsOnTarget") * 0.25;
+  r += n("totalShots") * 0.1;
+  r += n("saves") * 0.35;
+  r += n("foulsSuffered") * 0.05;
+  r -= n("foulsCommitted") * 0.1;
+  r -= n("yellowCards") * 0.5;
+  r -= n("redCards") * 2.0;
+  r -= n("ownGoals") * 1.5;
+  r -= n("goalsConceded") * 0.25; // keepers: leaking goals hurts
+  return Math.max(1, Math.min(10, Math.round(r * 10) / 10));
+}
 
 function parsePlayerStats(
   stats: Array<{ name?: string; displayValue?: string }> | undefined,
@@ -371,6 +409,7 @@ function parseLineups(rosters: EspnRoster[]): TeamLineup[] {
           formationPlace: Number.isFinite(place) && place > 0 ? place : null,
           jerseyHref: jersey?.href ?? p.athlete?.jerseyImages?.[0]?.href ?? null,
           stats: parsePlayerStats(p.stats),
+          rating: ratePlayer(p.stats),
         };
       })
       .filter((p) => p.name)
