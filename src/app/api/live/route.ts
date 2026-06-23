@@ -28,12 +28,17 @@ interface LiveMatch {
   matchId: string | null; // our DB match id (resolved by FIFA code), for deep-linking
 }
 
-export const revalidate = 30; // shared server cache window
+// 10s shared server cache: short enough that the scoreboard tracks ESPN goals
+// closely (the events list below it polls the summary endpoint, so a longer
+// window here made the score visibly trail the goals — France 1-0 while two
+// goals were already listed). All clients share this one fetch → ~6 ESPN
+// hits/min total regardless of how many people are watching.
+export const revalidate = 10; // shared server cache window
 
 export async function GET() {
   try {
     const res = await fetch(ESPN, {
-      next: { revalidate: 30 },
+      next: { revalidate: 10 },
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) throw new Error(`espn ${res.status}`);

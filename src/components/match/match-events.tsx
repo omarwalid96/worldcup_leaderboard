@@ -73,7 +73,7 @@ export function MatchEvents({
       if (document.visibilityState !== "visible") return;
       try {
         const res = await fetch(
-          `/api/match-events?home=${encodeURIComponent(homeTeam)}&away=${encodeURIComponent(awayTeam)}&t=${Math.floor(Date.now() / 30_000)}`,
+          `/api/match-events?home=${encodeURIComponent(homeTeam)}&away=${encodeURIComponent(awayTeam)}&t=${Math.floor(Date.now() / 10_000)}`,
           { cache: "no-store" },
         );
         const data: { events?: MatchEvent[] } = await res.json();
@@ -84,7 +84,9 @@ export function MatchEvents({
     };
     load();
     if (!live) return;
-    const id = setInterval(load, 60_000);
+    // 20s while live, matched to the scoreboard poll, so the timeline and the
+    // score above it refresh together (no "goal listed but score still 1-0" gap).
+    const id = setInterval(load, 20_000);
     return () => {
       alive = false;
       clearInterval(id);

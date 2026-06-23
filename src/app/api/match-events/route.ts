@@ -12,7 +12,11 @@ import { fetchMatchEvents } from "@/lib/football/espn";
  * call. Falls back to a live ESPN fetch only when nothing's stored yet (live or
  * just-finished match before the cron snapshot). Display only; never grades.
  */
-export const revalidate = 60;
+// 10s, matched to /api/live so the goals timeline and the scoreboard above it
+// stay in lockstep (a longer window here let one feed lead the other, e.g. a
+// goal listed while the score still read 1-0). Finished matches read from the
+// DB snapshot and never hit ESPN, so this only affects live matches.
+export const revalidate = 10;
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
