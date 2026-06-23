@@ -52,22 +52,43 @@ export function FriendsPicks({
     );
   }
 
+  // ponytail: group H/D/A only once scores are visible (homePick < 0 = redacted
+  // pre-kickoff, where outcome is unknowable). Hidden → keep the flat list.
+  const hidden = picks.some((p) => p.homePick < 0);
+  const groups: { label: string; items: FriendPick[] }[] = hidden
+    ? [{ label: "", items: picks }]
+    : (
+        [
+          { label: "Home", items: picks.filter((p) => p.homePick > p.awayPick) },
+          { label: "Draw", items: picks.filter((p) => p.homePick === p.awayPick) },
+          { label: "Away", items: picks.filter((p) => p.homePick < p.awayPick) },
+        ] as const
+      ).filter((g) => g.items.length > 0);
+
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
         <Users className="size-4" /> League picks
       </div>
-      <ul className="flex flex-col divide-y divide-border/50 overflow-hidden rounded-xl border border-border/60 bg-card/50">
-        {picks.map((p) => {
-          const isMe = p.userId === currentUserId;
-          return (
-            <li
-              key={p.userId}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5",
-                isMe && "bg-gold/5",
-              )}
-            >
+      <div className="flex flex-col gap-3">
+        {groups.map((group) => (
+          <div key={group.label} className="flex flex-col gap-1.5">
+            {group.label && (
+              <div className="px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                {group.label}
+              </div>
+            )}
+            <ul className="flex flex-col divide-y divide-border/50 overflow-hidden rounded-xl border border-border/60 bg-card/50">
+              {group.items.map((p) => {
+                const isMe = p.userId === currentUserId;
+                return (
+                  <li
+                    key={p.userId}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5",
+                      isMe && "bg-gold/5",
+                    )}
+                  >
               <Link href={`/u/${p.username}`} tabIndex={-1} aria-hidden>
                 <Avatar className="size-7 border border-border/60">
                   {p.avatarUrl && <AvatarImage src={p.avatarUrl} alt={p.displayName} />}
@@ -124,13 +145,16 @@ export function FriendsPicks({
                     >
                       {pts > 0 ? `+${pts}` : "0"}
                     </span>
-                  );
-                })()
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
+                        );
+                      })()
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
