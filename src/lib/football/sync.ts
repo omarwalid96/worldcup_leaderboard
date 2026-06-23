@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { matches } from "@/db/schema";
 import { getFootballProvider } from "./index";
@@ -148,7 +148,14 @@ export async function persistMatchEvents(): Promise<number> {
       awayTeam: matches.awayTeam,
     })
     .from(matches)
-    .where(and(eq(matches.status, "finished"), isNull(matches.gamecast)));
+    .where(
+      and(
+        eq(matches.status, "finished"),
+        // Missing entirely, OR a pre-formationPlace snapshot (older shape) that
+        // can't draw the pitch / show jerseys — re-snapshot to upgrade it.
+        sql`(${matches.gamecast} IS NULL OR ${matches.gamecast} #> '{lineups,0,players,0,formationPlace}' IS NULL)`,
+      ),
+    );
 
   let stored = 0;
   for (const m of pending) {

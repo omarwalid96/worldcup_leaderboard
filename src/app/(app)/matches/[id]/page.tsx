@@ -8,6 +8,7 @@ import { FriendsPicks } from "@/components/match/friends-picks";
 import { MatchAdmin } from "@/components/admin/match-admin";
 import { LiveRefresher } from "@/components/match/live-refresher";
 import { FieldHero } from "@/components/match/field-hero";
+import { MatchExtras } from "@/components/match/match-extras";
 import { requireProfile } from "@/lib/auth/session";
 import { getMatchForPrediction, getMatchPredictions } from "@/lib/predictions/queries";
 import { isPredictable } from "@/lib/time/usday";
@@ -94,8 +95,18 @@ export default async function PredictPage({
         />
       )}
 
-      {/* Stats / lineups / timeline live on their own page so predictions stay
-          the focus here. Only relevant once the match has started. */}
+      {/* Goals + cards timeline inline (live + recent finished; fails soft). */}
+      {match.status !== "scheduled" && (
+        <MatchExtras
+          homeTeam={match.homeTeam}
+          awayTeam={match.awayTeam}
+          live={match.status === "live"}
+          show={["timeline"]}
+        />
+      )}
+
+      {/* Stats + lineups live on their own page so predictions stay the focus
+          here. Only relevant once the match has started. */}
       {match.status !== "scheduled" && (
         <Link
           href={`/matches/${id}/stats`}

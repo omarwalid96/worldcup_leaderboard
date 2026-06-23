@@ -55,10 +55,14 @@ export function MatchExtras({
   homeTeam,
   awayTeam,
   live = false,
+  show = ["timeline", "stats", "lineups"],
 }: {
   homeTeam: string;
   awayTeam: string;
   live?: boolean;
+  /** Which tabs to render. The detail page shows only the timeline; the stats
+   *  page shows stats + lineups. */
+  show?: Array<"timeline" | "stats" | "lineups">;
 }) {
   const [data, setData] = useState<Gamecast | null>(null);
 
@@ -87,9 +91,10 @@ export function MatchExtras({
   }, [homeTeam, awayTeam, live]);
 
   if (!data) return null;
-  const hasStats = data.teamStats.length > 0;
-  const hasLineups = data.lineups.some((l) => l.players.length > 0);
-  const hasEvents = data.events.length > 0;
+  const hasStats = show.includes("stats") && data.teamStats.length > 0;
+  const hasLineups =
+    show.includes("lineups") && data.lineups.some((l) => l.players.length > 0);
+  const hasEvents = show.includes("timeline") && data.events.length > 0;
   if (!hasStats && !hasLineups && !hasEvents) return null;
 
   const first = hasEvents ? "timeline" : hasStats ? "stats" : "lineups";
@@ -283,7 +288,13 @@ function Pitch({
   formation: string | null;
   players: LineupPlayer[];
 }) {
-  const byPlace = new Map(players.map((p) => [p.formationPlace, p]));
+  // Older snapshots predate formationPlace — fall back to the players' order
+  // (ESPN lists starters GK-first), so the pitch still fills instead of showing
+  // empty slots.
+  const haveAllPlaces = players.every((p) => p.formationPlace != null);
+  const byPlace = new Map(
+    players.map((p, i) => [haveAllPlaces ? p.formationPlace : i + 1, p]),
+  );
   // Defense→attack from formationRows; render attack at the TOP of the pitch, so
   // reverse to put the GK row at the bottom.
   const rows = [...formationRows(formation, players.length)].reverse();
