@@ -19,7 +19,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const home = searchParams.get("home") ?? "";
   const away = searchParams.get("away") ?? "";
-  const empty = { events: [], teamStats: [], lineups: [] };
+  const empty = { events: [], teamStats: [], lineups: [], leaders: [] };
   if (!home || !away) return NextResponse.json(empty);
 
   const [row] = await db

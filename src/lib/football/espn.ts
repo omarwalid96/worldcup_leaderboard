@@ -171,6 +171,12 @@ export interface TeamStatRow {
   away: string;
 }
 
+/** One labelled per-player stat (e.g. {label:"Goals", value:"1"}). */
+export interface PlayerStat {
+  label: string;
+  value: string;
+}
+
 /** One player in a formation/lineup. side = which team. */
 export interface LineupPlayer {
   name: string;
@@ -183,6 +189,21 @@ export interface LineupPlayer {
   formationPlace: number | null;
   /** Live ESPN jersey image URL (not stored as a file; URL only). */
   jerseyHref: string | null;
+  /** This player's match stat line (curated; empty if none). */
+  stats: PlayerStat[];
+}
+
+/** One "star performer" — a team leader in some stat category. */
+export interface MatchLeader {
+  category: string; // "Total Shots"
+  player: string;
+  value: string;
+}
+
+export interface TeamLeaders {
+  side: "home" | "away";
+  team: string;
+  leaders: MatchLeader[];
 }
 
 export interface TeamLineup {
@@ -197,6 +218,7 @@ export interface MatchGamecast {
   events: MatchEvent[];
   teamStats: TeamStatRow[];
   lineups: TeamLineup[];
+  leaders: TeamLeaders[];
 }
 
 // The Team Stats tab — curated subset of boxscore stats in display order. We
@@ -230,6 +252,7 @@ type EspnRoster = {
     jersey?: string;
     formationPlace?: string;
     position?: { abbreviation?: string };
+    stats?: Array<{ name?: string; displayValue?: string }>;
     athlete?: {
       displayName?: string;
       shortName?: string;
@@ -237,6 +260,75 @@ type EspnRoster = {
     };
   }>;
 };
+
+// Per-player stats worth showing, name → label, in display order. Zero-value
+// rows are dropped per player so a defender doesn't show "0 Saves".
+const PLAYER_STATS: Array<[string, string]> = [
+  ["totalGoals", "Goals"],
+  ["goalAssists", "Assists"],
+  ["totalShots", "Shots"],
+  ["shotsOnTarget", "On target"],
+  ["foulsCommitted", "Fouls"],
+  ["foulsSuffered", "Fouled"],
+  ["offsides", "Offsides"],
+  ["yellowCards", "Yellow"],
+  ["redCards", "Red"],
+  ["saves", "Saves"],
+  ["goalsConceded", "Conceded"],
+];
+
+function parsePlayerStats(
+  stats: Array<{ name?: string; displayValue?: string }> | undefined,
+): PlayerStat[] {
+  if (!stats) return [];
+  const by = new Map(stats.map((s) => [s.name, s.displayValue]));
+  const out: PlayerStat[] = [];
+  for (const [name, label] of PLAYER_STATS) {
+    const v = by.get(name);
+    if (v == null) continue;
+    // Drop zero rows except goals/assists (a "0 Goals" line is just noise).
+    if (v === "0" && name !== "totalGoals" && name !== "goalAssists") continue;
+    out.push({ label, value: v });
+  }
+  return out;
+}
+
+type EspnLeaderGroup = {
+  team?: { id?: string; displayName?: string };
+  leaders?: Array<{
+    displayName?: string;
+    leaders?: Array<{ displayValue?: string; athlete?: { shortName?: string } }>;
+  }>;
+};
+
+/**
+ * Leaders groups carry no homeAway, but ESPN orders them home-first (same as
+ * rosters). We resolve the side by matching the leaders' team displayName to the
+ * rosters' (already side-tagged); fall back to array order if names don't match.
+ */
+function parseLeaders(
+  groups: EspnLeaderGroup[],
+  sideByTeam: Map<string, "home" | "away">,
+): TeamLeaders[] {
+  const out: TeamLeaders[] = [];
+  groups.forEach((g, i) => {
+    const team = g.team?.displayName ?? "";
+    const side = sideByTeam.get(team) ?? (i === 0 ? "home" : "away");
+    const leaders: MatchLeader[] = [];
+    for (const cat of g.leaders ?? []) {
+      const top = cat.leaders?.[0];
+      const player = top?.athlete?.shortName;
+      if (!player || top?.displayValue == null) continue;
+      leaders.push({
+        category: cat.displayName ?? "",
+        player,
+        value: top.displayValue,
+      });
+    }
+    if (leaders.length) out.push({ side, team, leaders });
+  });
+  return out;
+}
 
 function parseTeamStats(teams: EspnBoxTeam[]): TeamStatRow[] {
   const home = teams.find((t) => t.homeAway === "home");
@@ -278,6 +370,7 @@ function parseLineups(rosters: EspnRoster[]): TeamLineup[] {
           subbedIn: Boolean(p.subbedIn),
           formationPlace: Number.isFinite(place) && place > 0 ? place : null,
           jerseyHref: jersey?.href ?? p.athlete?.jerseyImages?.[0]?.href ?? null,
+          stats: parsePlayerStats(p.stats),
         };
       })
       .filter((p) => p.name)
@@ -332,12 +425,16 @@ export async function fetchMatchGamecast(
       keyEvents?: EspnKeyEvent[];
       boxscore?: { teams?: EspnBoxTeam[] };
       rosters?: EspnRoster[];
+      leaders?: EspnLeaderGroup[];
     };
 
+    const lineups = parseLineups(sum.rosters ?? []);
+    const sideByTeam = new Map(lineups.map((l) => [l.team, l.side]));
     return {
       events: eventsFromKeyEvents(sum.keyEvents ?? [], wantHome, wantAway),
       teamStats: parseTeamStats(sum.boxscore?.teams ?? []),
-      lineups: parseLineups(sum.rosters ?? []),
+      lineups,
+      leaders: parseLeaders(sum.leaders ?? [], sideByTeam),
     };
   } catch {
     return null;

@@ -151,9 +151,14 @@ export async function persistMatchEvents(): Promise<number> {
     .where(
       and(
         eq(matches.status, "finished"),
-        // Missing entirely, OR a pre-formationPlace snapshot (older shape) that
-        // can't draw the pitch / show jerseys — re-snapshot to upgrade it.
-        sql`(${matches.gamecast} IS NULL OR ${matches.gamecast} #> '{lineups,0,players,0,formationPlace}' IS NULL)`,
+        // Missing entirely, OR an older-shape snapshot lacking newer fields
+        // (formationPlace for the pitch, top-level leaders) — re-snapshot to
+        // upgrade it. `?` tests for a top-level jsonb key.
+        sql`(
+          ${matches.gamecast} IS NULL
+          OR ${matches.gamecast} #> '{lineups,0,players,0,formationPlace}' IS NULL
+          OR NOT (${matches.gamecast} ? 'leaders')
+        )`,
       ),
     );
 

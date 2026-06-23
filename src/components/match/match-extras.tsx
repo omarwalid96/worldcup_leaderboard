@@ -21,6 +21,10 @@ interface TeamStatRow {
   home: string;
   away: string;
 }
+interface PlayerStat {
+  label: string;
+  value: string;
+}
 interface LineupPlayer {
   name: string;
   jersey: string;
@@ -30,6 +34,7 @@ interface LineupPlayer {
   subbedIn: boolean;
   formationPlace: number | null;
   jerseyHref: string | null;
+  stats: PlayerStat[];
 }
 interface TeamLineup {
   side: "home" | "away";
@@ -37,10 +42,21 @@ interface TeamLineup {
   formation: string | null;
   players: LineupPlayer[];
 }
+interface MatchLeader {
+  category: string;
+  player: string;
+  value: string;
+}
+interface TeamLeaders {
+  side: "home" | "away";
+  team: string;
+  leaders: MatchLeader[];
+}
 interface Gamecast {
   events: MatchEvent[];
   teamStats: TeamStatRow[];
   lineups: TeamLineup[];
+  leaders: TeamLeaders[];
 }
 
 const MARK: Record<MatchEvent["kind"], string> = {
@@ -113,8 +129,9 @@ export function MatchExtras({
         </TabsContent>
       )}
       {hasStats && (
-        <TabsContent value="stats" className="pt-3">
+        <TabsContent value="stats" className="flex flex-col gap-4 pt-3">
           <TeamStats rows={data.teamStats} homeTeam={homeTeam} awayTeam={awayTeam} />
+          {data.leaders.length > 0 && <StarPerformers leaders={data.leaders} />}
         </TabsContent>
       )}
       {hasLineups && (
@@ -225,11 +242,50 @@ function TeamStats({
   );
 }
 
-function Lineups({ lineups }: { lineups: TeamLineup[] }) {
-  // Per-team tabs (like ESPN): pick a side, see its pitch + bench.
-  const first = lineups[0]?.side ?? "home";
+function StarPerformers({ leaders }: { leaders: TeamLeaders[] }) {
   return (
-    <Tabs defaultValue={first} className="gap-3">
+    <div className="flex flex-col gap-2">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Star performers
+      </span>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {leaders.map((t) => (
+          <div key={t.side} className="flex flex-col gap-1">
+            <span className="text-sm font-semibold">{t.team}</span>
+            {t.leaders.map((l) => (
+              <div
+                key={l.category}
+                className="flex items-baseline justify-between gap-2 text-sm"
+              >
+                <span className="truncate">
+                  <span className="font-numeric tabular-nums font-semibold text-gold">
+                    {l.value}
+                  </span>{" "}
+                  {l.player}
+                </span>
+                <span className="shrink-0 text-[11px] text-muted-foreground">
+                  {l.category}
+                </span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Lineups({ lineups }: { lineups: TeamLineup[] }) {
+  // Per-team tabs (like ESPN): pick a side, see its pitch + bench. Tapping a
+  // player reveals their stat line in a panel below.
+  const first = lineups[0]?.side ?? "home";
+  const [selected, setSelected] = useState<LineupPlayer | null>(null);
+  return (
+    <Tabs
+      defaultValue={first}
+      className="gap-3"
+      onValueChange={() => setSelected(null)}
+    >
       <TabsList className="w-full">
         {lineups.map((l) => (
           <TabsTrigger key={l.side} value={l.side}>
@@ -247,11 +303,68 @@ function Lineups({ lineups }: { lineups: TeamLineup[] }) {
           <Pitch
             formation={l.formation}
             players={l.players.filter((p) => p.starter)}
+            onSelect={setSelected}
           />
-          <Bench players={l.players.filter((p) => !p.starter)} />
+          {selected && (
+            <PlayerStatCard player={selected} onClose={() => setSelected(null)} />
+          )}
+          <Bench
+            players={l.players.filter((p) => !p.starter)}
+            onSelect={setSelected}
+          />
         </TabsContent>
       ))}
     </Tabs>
+  );
+}
+
+function PlayerStatCard({
+  player,
+  onClose,
+}: {
+  player: LineupPlayer;
+  onClose: () => void;
+}) {
+  return (
+    <div className="rounded-xl border border-gold/30 bg-gold/5 p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-sm font-semibold">
+          <span className="font-numeric tabular-nums text-muted-foreground">
+            #{player.jersey}
+          </span>{" "}
+          {player.name}
+          {player.position && (
+            <span className="ml-1.5 text-[10px] uppercase text-muted-foreground/70">
+              {player.position}
+            </span>
+          )}
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-xs text-muted-foreground hover:text-foreground"
+          aria-label="Close"
+        >
+          ✕
+        </button>
+      </div>
+      {player.stats.length > 0 ? (
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+          {player.stats.map((s) => (
+            <div key={s.label} className="flex flex-col">
+              <span className="font-numeric tabular-nums text-base font-bold">
+                {s.value}
+              </span>
+              <span className="text-[10px] uppercase text-muted-foreground">
+                {s.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">No stats recorded.</p>
+      )}
+    </div>
   );
 }
 
@@ -284,9 +397,11 @@ function formationRows(formation: string | null, count: number): number[][] {
 function Pitch({
   formation,
   players,
+  onSelect,
 }: {
   formation: string | null;
   players: LineupPlayer[];
+  onSelect: (p: LineupPlayer) => void;
 }) {
   // Older snapshots predate formationPlace — fall back to the players' order
   // (ESPN lists starters GK-first), so the pitch still fills instead of showing
@@ -310,7 +425,7 @@ function Pitch({
             {row.map((place) => {
               const p = byPlace.get(place);
               if (!p) return <div key={place} className="w-14" />;
-              return <PitchPlayer key={place} p={p} />;
+              return <PitchPlayer key={place} p={p} onSelect={onSelect} />;
             })}
           </div>
         ))}
@@ -319,9 +434,19 @@ function Pitch({
   );
 }
 
-function PitchPlayer({ p }: { p: LineupPlayer }) {
+function PitchPlayer({
+  p,
+  onSelect,
+}: {
+  p: LineupPlayer;
+  onSelect: (p: LineupPlayer) => void;
+}) {
   return (
-    <div className="flex w-16 flex-col items-center gap-0.5 text-center">
+    <button
+      type="button"
+      onClick={() => onSelect(p)}
+      className="flex w-16 flex-col items-center gap-0.5 text-center transition-transform hover:scale-105 focus-visible:outline-1 focus-visible:outline-ring"
+    >
       <div className="relative">
         {p.jerseyHref ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -348,11 +473,17 @@ function PitchPlayer({ p }: { p: LineupPlayer }) {
       <span className="max-w-full truncate text-[11px] font-medium leading-tight">
         {p.name}
       </span>
-    </div>
+    </button>
   );
 }
 
-function Bench({ players }: { players: LineupPlayer[] }) {
+function Bench({
+  players,
+  onSelect,
+}: {
+  players: LineupPlayer[];
+  onSelect: (p: LineupPlayer) => void;
+}) {
   if (players.length === 0) return null;
   return (
     <div className="flex flex-col gap-1">
@@ -361,19 +492,22 @@ function Bench({ players }: { players: LineupPlayer[] }) {
       </span>
       <ul className="grid grid-cols-2 gap-x-4 gap-y-0.5">
         {players.map((p, i) => (
-          <li
-            key={`${p.jersey}-${i}`}
-            className="flex items-center gap-2 text-sm text-muted-foreground"
-          >
-            <span className="w-5 shrink-0 text-right font-numeric tabular-nums text-xs">
-              {p.jersey}
-            </span>
-            <span className="truncate">{p.name}</span>
-            {p.subbedIn && (
-              <span className="shrink-0 text-[10px]" title="Came on">
-                🔺
+          <li key={`${p.jersey}-${i}`}>
+            <button
+              type="button"
+              onClick={() => onSelect(p)}
+              className="flex w-full items-center gap-2 text-left text-sm text-muted-foreground hover:text-foreground"
+            >
+              <span className="w-5 shrink-0 text-right font-numeric tabular-nums text-xs">
+                {p.jersey}
               </span>
-            )}
+              <span className="truncate">{p.name}</span>
+              {p.subbedIn && (
+                <span className="shrink-0 text-[10px]" title="Came on">
+                  🔺
+                </span>
+              )}
+            </button>
           </li>
         ))}
       </ul>
