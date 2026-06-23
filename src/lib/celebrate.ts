@@ -1,6 +1,7 @@
 "use client";
 
 import confetti from "canvas-confetti";
+import { Capacitor } from "@capacitor/core";
 
 /** Whether the user prefers reduced motion. */
 function reducedMotion(): boolean {
@@ -10,8 +11,20 @@ function reducedMotion(): boolean {
   );
 }
 
-/** Light haptic tap (mobile). No-ops where unsupported. */
+/**
+ * Light haptic tap (mobile).
+ * On native: uses @capacitor/haptics (richer, no "blocked until tap" warning).
+ * On web: falls back to navigator.vibrate.
+ * Both paths no-op where unsupported.
+ */
 export function haptic(pattern: number | number[] = 15) {
+  if (Capacitor.isNativePlatform()) {
+    // ponytail: fire-and-forget; import is cheap (cached after first call).
+    void import("@capacitor/haptics").then(({ Haptics, ImpactStyle }) => {
+      void Haptics.impact({ style: ImpactStyle.Medium }).catch(() => {});
+    });
+    return;
+  }
   try {
     navigator.vibrate?.(pattern);
   } catch {

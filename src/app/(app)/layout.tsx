@@ -7,6 +7,7 @@ import { SwRegister } from "@/components/sw-register";
 import { EgyptHype } from "@/components/match/egypt-hype";
 import { LiveIsland } from "@/components/match/live-island";
 import { getTodaysEgyptMatch } from "@/lib/matches/egypt";
+import { NativeInit } from "@/components/native-init";
 
 export default async function AppLayout({
   children,
@@ -56,6 +57,9 @@ export default async function AppLayout({
 
       <BottomNav />
       <SwRegister />
+      {/* Native-only: push registration, hardware back button, haptics.
+          Completely inert on web — guarded by Capacitor.isNativePlatform(). */}
+      <NativeInit />
     </div>
   );
 }
