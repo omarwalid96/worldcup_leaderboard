@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Eznii Ya Dawly</string>
+    <string name="title_activity_main">Eznii Ya Dawly</string>
+    <string name="package_name">com.eznii.dawly</string>
+    <string name="custom_url_scheme">com.eznii.dawly</string>
+</resources>

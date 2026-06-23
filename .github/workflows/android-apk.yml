@@ -1,0 +1,43 @@
+# Builds an installable debug APK on every push to native-capacitor (and on
+# demand). Debug build → self-signed with Android's default debug key, so NO
+# keystore/secrets needed — just download the artifact and sideload it.
+# ponytail: debug APK only. Add a signed release-.aab job when you publish to
+# Play (needs a keystore in repo secrets); not needed for manual testing.
+name: Android APK (debug)
+
+on:
+  push:
+    branches: [native-capacitor]
+  workflow_dispatch: # lets you trigger a build manually from the Actions tab
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21 # Capacitor 8 compiles against Java 21
+
+      - run: npm ci
+
+      # Sync the web config into the native project (no web build needed — the
+      # app is a WebView pointed at the live Vercel URL via server.url).
+      - run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
