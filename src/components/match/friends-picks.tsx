@@ -54,6 +54,9 @@ export function FriendsPicks({
 
   // ponytail: group H/D/A only once scores are visible (homePick < 0 = redacted
   // pre-kickoff, where outcome is unknowable). Hidden → keep the flat list.
+  // Within each group, sort scorelines ascending (home asc, then away asc).
+  const byScoreline = (a: FriendPick, b: FriendPick) =>
+    a.homePick - b.homePick || a.awayPick - b.awayPick;
   const hidden = picks.some((p) => p.homePick < 0);
   const groups: { label: string; items: FriendPick[] }[] = hidden
     ? [{ label: "", items: picks }]
@@ -63,7 +66,9 @@ export function FriendsPicks({
           { label: "Draw", items: picks.filter((p) => p.homePick === p.awayPick) },
           { label: "Away", items: picks.filter((p) => p.homePick < p.awayPick) },
         ] as const
-      ).filter((g) => g.items.length > 0);
+      )
+        .map((g) => ({ ...g, items: [...g.items].sort(byScoreline) }))
+        .filter((g) => g.items.length > 0);
 
   return (
     <div className="flex flex-col gap-2">
