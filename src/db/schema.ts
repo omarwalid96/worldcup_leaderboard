@@ -119,6 +119,11 @@ export const matches = pgTable(
     // scoreboard. Null = not yet captured; the /api/match-events route falls
     // back to a live ESPN fetch. Display only — never used for grading.
     events: jsonb("events").$type<import("@/lib/football/espn").MatchEvent[]>(),
+    // Full gamecast (team stats + lineups + timeline) snapshotted from ESPN once
+    // a match finishes, so old matches keep stats/lineups after aging off ESPN's
+    // scoreboard. Null = not yet captured; /api/match-gamecast falls back to a
+    // live ESPN fetch. Display only — never used for grading.
+    gamecast: jsonb("gamecast").$type<import("@/lib/football/espn").MatchGamecast>(),
     lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
   },
   (t) => [

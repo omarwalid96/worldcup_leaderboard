@@ -124,33 +124,201 @@ export async function fetchMatchEvents(
     const sum = (await getJson(`${SUMMARY_BASE}/summary?event=${eventId}`)) as {
       keyEvents?: EspnKeyEvent[];
     };
+    return eventsFromKeyEvents(sum.keyEvents ?? [], wantHome, wantAway);
+  } catch {
+    return null;
+  }
+}
 
-    const events: MatchEvent[] = [];
-    for (const e of sum.keyEvents ?? []) {
-      const kind = classify(e);
-      if (!kind) continue;
-      const players = (e.participants ?? [])
-        .map((p) => p.athlete?.displayName)
-        .filter((n): n is string => Boolean(n));
-      if (players.length === 0) continue;
-      // Place the event on the side whose code matches the event's team. An
-      // own goal counts for the OTHER side's score, so flip it.
-      const eventCode = teamCodeOf(e.team?.displayName ?? "");
-      if (eventCode !== wantHome && eventCode !== wantAway) continue; // unknown
-      let side: "home" | "away" = eventCode === wantHome ? "home" : "away";
-      if (kind === "own-goal") side = side === "home" ? "away" : "home";
-      const isGoal =
-        kind === "goal" || kind === "own-goal" || kind === "penalty-goal";
-      events.push({
-        minute: e.clock?.displayValue ?? "",
-        kind,
-        team: e.team?.displayName ?? "",
-        side,
-        player: players[0],
-        assist: isGoal && players[1] ? players[1] : null,
-      });
+/** Map ESPN keyEvents → our goal/card timeline. Shared by events + gamecast. */
+function eventsFromKeyEvents(
+  keyEvents: EspnKeyEvent[],
+  wantHome: string,
+  wantAway: string,
+): MatchEvent[] {
+  const events: MatchEvent[] = [];
+  for (const e of keyEvents) {
+    const kind = classify(e);
+    if (!kind) continue;
+    const players = (e.participants ?? [])
+      .map((p) => p.athlete?.displayName)
+      .filter((n): n is string => Boolean(n));
+    if (players.length === 0) continue;
+    // Place the event on the side whose code matches the event's team. An
+    // own goal counts for the OTHER side's score, so flip it.
+    const eventCode = teamCodeOf(e.team?.displayName ?? "");
+    if (eventCode !== wantHome && eventCode !== wantAway) continue; // unknown
+    let side: "home" | "away" = eventCode === wantHome ? "home" : "away";
+    if (kind === "own-goal") side = side === "home" ? "away" : "home";
+    const isGoal =
+      kind === "goal" || kind === "own-goal" || kind === "penalty-goal";
+    events.push({
+      minute: e.clock?.displayValue ?? "",
+      kind,
+      team: e.team?.displayName ?? "",
+      side,
+      player: players[0],
+      assist: isGoal && players[1] ? players[1] : null,
+    });
+  }
+  return events;
+}
+
+/** One row of the head-to-head Team Stats tab: home vs away for one metric. */
+export interface TeamStatRow {
+  label: string;
+  home: string;
+  away: string;
+}
+
+/** One player in a formation/lineup. side = which team. */
+export interface LineupPlayer {
+  name: string;
+  jersey: string;
+  position: string; // abbreviation: G/D/M/F
+  starter: boolean;
+  subbedOut: boolean;
+}
+
+export interface TeamLineup {
+  side: "home" | "away";
+  team: string;
+  formation: string | null;
+  players: LineupPlayer[]; // starters first, then bench, in roster order
+}
+
+/** Everything the match-detail extra tabs need, from ONE summary fetch. */
+export interface MatchGamecast {
+  events: MatchEvent[];
+  teamStats: TeamStatRow[];
+  lineups: TeamLineup[];
+}
+
+// The Team Stats tab — curated subset of boxscore stats in display order. We
+// only surface the ones worth comparing (ESPN ships ~28, many are noise).
+const STAT_ORDER = [
+  "possessionPct",
+  "totalShots",
+  "shotsOnTarget",
+  "wonCorners",
+  "foulsCommitted",
+  "yellowCards",
+  "redCards",
+  "offsides",
+  "saves",
+  "accuratePasses",
+  "totalPasses",
+] as const;
+
+type EspnBoxTeam = {
+  homeAway?: string;
+  statistics?: Array<{ name?: string; displayValue?: string; label?: string }>;
+};
+type EspnRoster = {
+  homeAway?: string;
+  formation?: string;
+  team?: { displayName?: string };
+  roster?: Array<{
+    starter?: boolean;
+    subbedOut?: boolean;
+    jersey?: string;
+    position?: { abbreviation?: string };
+    athlete?: { displayName?: string; shortName?: string };
+  }>;
+};
+
+function parseTeamStats(teams: EspnBoxTeam[]): TeamStatRow[] {
+  const home = teams.find((t) => t.homeAway === "home");
+  const away = teams.find((t) => t.homeAway === "away");
+  if (!home || !away) return [];
+  const pick = (t: EspnBoxTeam, name: string) =>
+    t.statistics?.find((s) => s.name === name);
+  const rows: TeamStatRow[] = [];
+  for (const name of STAT_ORDER) {
+    const h = pick(home, name);
+    const a = pick(away, name);
+    if (!h && !a) continue;
+    rows.push({
+      label: h?.label ?? a?.label ?? name,
+      home: h?.displayValue ?? "0",
+      away: a?.displayValue ?? "0",
+    });
+  }
+  return rows;
+}
+
+function parseLineups(rosters: EspnRoster[]): TeamLineup[] {
+  const out: TeamLineup[] = [];
+  for (const side of ["home", "away"] as const) {
+    const r = rosters.find((x) => x.homeAway === side);
+    if (!r) continue;
+    const players: LineupPlayer[] = (r.roster ?? [])
+      .map((p) => ({
+        name: p.athlete?.shortName ?? p.athlete?.displayName ?? "",
+        jersey: p.jersey ?? "",
+        position: p.position?.abbreviation ?? "",
+        starter: Boolean(p.starter),
+        subbedOut: Boolean(p.subbedOut),
+      }))
+      .filter((p) => p.name)
+      // starters first, then bench; ESPN's order is already sensible within each
+      .sort((a, b) => Number(b.starter) - Number(a.starter));
+    out.push({
+      side,
+      team: r.team?.displayName ?? "",
+      formation: r.formation ?? null,
+      players,
+    });
+  }
+  return out;
+}
+
+/**
+ * Full gamecast (timeline + team stats + lineups) for one match, from ONE ESPN
+ * summary fetch. Same scoreboard→eventId→summary lookup as fetchMatchEvents,
+ * keyed by FIFA team code. Returns null if ESPN can't serve it (aged off /
+ * down / reshaped). Display only — never grades.
+ */
+export async function fetchMatchGamecast(
+  home: string,
+  away: string,
+): Promise<MatchGamecast | null> {
+  const wantHome = teamCodeOf(home);
+  const wantAway = teamCodeOf(away);
+  if (!wantHome || !wantAway) return null;
+
+  try {
+    const sb = (await getJson(`${SUMMARY_BASE}/scoreboard`)) as {
+      events?: Array<{
+        id?: string;
+        competitions?: Array<{
+          competitors?: Array<{ homeAway: string; team?: { displayName?: string } }>;
+        }>;
+      }>;
+    };
+    let eventId: string | undefined;
+    for (const e of sb.events ?? []) {
+      const c = e.competitions?.[0]?.competitors ?? [];
+      const h = c.find((x) => x.homeAway === "home")?.team?.displayName;
+      const a = c.find((x) => x.homeAway === "away")?.team?.displayName;
+      if (teamCodeOf(h ?? "") === wantHome && teamCodeOf(a ?? "") === wantAway) {
+        eventId = e.id;
+        break;
+      }
     }
-    return events;
+    if (!eventId) return null;
+
+    const sum = (await getJson(`${SUMMARY_BASE}/summary?event=${eventId}`)) as {
+      keyEvents?: EspnKeyEvent[];
+      boxscore?: { teams?: EspnBoxTeam[] };
+      rosters?: EspnRoster[];
+    };
+
+    return {
+      events: eventsFromKeyEvents(sum.keyEvents ?? [], wantHome, wantAway),
+      teamStats: parseTeamStats(sum.boxscore?.teams ?? []),
+      lineups: parseLineups(sum.rosters ?? []),
+    };
   } catch {
     return null;
   }

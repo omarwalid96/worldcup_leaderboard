@@ -3,7 +3,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { matches } from "@/db/schema";
 import { getFootballProvider } from "./index";
-import { fetchMatchEvents } from "./espn";
+import { fetchMatchGamecast } from "./espn";
 
 /** A score/status change worth a league-wide push (goal, kickoff, full time). */
 export interface MatchAlert {
@@ -132,11 +132,13 @@ export async function syncMatches(): Promise<SyncSummary> {
 }
 
 /**
- * Snapshot the goals/cards timeline from ESPN for finished matches that don't
- * have one stored yet, so they keep their timeline after aging off ESPN's
- * scoreboard. Idempotent (only fills `events IS NULL`); fails soft per match —
- * a null fetch (ESPN down / aged off) just leaves it for a later run. Display
- * only; never touches scores/grading. Returns how many matches it stored.
+ * Snapshot the full gamecast (timeline + team stats + lineups) from ESPN for
+ * finished matches that don't have it stored yet, so they keep stats/lineups
+ * after aging off ESPN's scoreboard. One ESPN call fills both `events` (the
+ * timeline, kept as its own column for the live timeline path) and `gamecast`.
+ * Idempotent (only fills rows missing `gamecast`); fails soft per match — a null
+ * fetch (ESPN down / aged off) just leaves it for a later run. Display only;
+ * never touches scores/grading. Returns how many matches it stored.
  */
 export async function persistMatchEvents(): Promise<number> {
   const pending = await db
@@ -146,13 +148,16 @@ export async function persistMatchEvents(): Promise<number> {
       awayTeam: matches.awayTeam,
     })
     .from(matches)
-    .where(and(eq(matches.status, "finished"), isNull(matches.events)));
+    .where(and(eq(matches.status, "finished"), isNull(matches.gamecast)));
 
   let stored = 0;
   for (const m of pending) {
-    const events = await fetchMatchEvents(m.homeTeam, m.awayTeam);
-    if (events === null) continue; // not on ESPN right now — retry next run
-    await db.update(matches).set({ events }).where(eq(matches.id, m.id));
+    const gamecast = await fetchMatchGamecast(m.homeTeam, m.awayTeam);
+    if (gamecast === null) continue; // not on ESPN right now — retry next run
+    await db
+      .update(matches)
+      .set({ gamecast, events: gamecast.events })
+      .where(eq(matches.id, m.id));
     stored++;
   }
   return stored;
