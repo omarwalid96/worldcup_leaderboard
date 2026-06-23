@@ -22,6 +22,9 @@
     "users:password": "tsx --env-file=.env.local scripts/set-password.ts"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/ios": "^8.4.1",
     "@formkit/auto-animate": "^0.9.0",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
@@ -49,6 +52,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.6.7",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/canvas-confetti": "^1.9.0",

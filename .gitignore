@@ -47,3 +47,14 @@ gs-verify.local.mjs
 # local DB backups
 /backups
 server/haxball/node_modules/
+
+# Capacitor / native build artifacts (commit source trees, not build output)
+ios/App/Pods/
+ios/App/build/
+ios/App/.build/
+android/.gradle/
+android/app/build/
+android/build/
+*.xcworkspace/xcuserdata/
+DerivedData/
+*.xcuserstate
