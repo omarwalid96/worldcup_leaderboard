@@ -18,6 +18,23 @@ function initials(name: string) {
     .toUpperCase();
 }
 
+// ponytail: group H/D/A only once scores are visible (homePick < 0 = redacted
+// pre-kickoff). Within each group, sort scorelines ascending (home, then away).
+function groupPicks(picks: FriendPick[]): { label: string; items: FriendPick[] }[] {
+  if (picks.some((p) => p.homePick < 0)) return [{ label: "", items: picks }];
+  const byScoreline = (a: FriendPick, b: FriendPick) =>
+    a.homePick - b.homePick || a.awayPick - b.awayPick;
+  return (
+    [
+      { label: "Home", items: picks.filter((p) => p.homePick > p.awayPick) },
+      { label: "Draw", items: picks.filter((p) => p.homePick === p.awayPick) },
+      { label: "Away", items: picks.filter((p) => p.homePick < p.awayPick) },
+    ] as const
+  )
+    .map((g) => ({ ...g, items: [...g.items].sort(byScoreline) }))
+    .filter((g) => g.items.length > 0);
+}
+
 /**
  * Inline, tap-to-expand list of every league member's pick for a match.
  * Picks are fetched on demand (so the match list doesn't N+1 query).
@@ -103,8 +120,15 @@ export function CardPicks({
                   <Loader2 className="size-4 animate-spin" />
                 </div>
               ) : picks && picks.length > 0 ? (
-                <ul className="flex flex-col gap-1.5">
-                  {picks.map((p) => (
+                groupPicks(picks).map((group) => (
+                <div key={group.label} className="flex flex-col gap-1">
+                  {group.label && (
+                    <div className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                      {group.label}
+                    </div>
+                  )}
+                  <ul className="flex flex-col gap-1.5">
+                  {group.items.map((p) => (
                     <li key={p.userId} className="flex items-center gap-2">
                       <Avatar className="size-6 border border-border/60">
                         {p.avatarUrl && <AvatarImage src={p.avatarUrl} alt={p.displayName} />}
@@ -155,7 +179,9 @@ export function CardPicks({
                       ) : null}
                     </li>
                   ))}
-                </ul>
+                  </ul>
+                </div>
+                ))
               ) : (
                 <p className="py-2 text-center text-xs text-muted-foreground">
                   No picks for this match.
