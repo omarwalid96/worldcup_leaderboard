@@ -310,7 +310,6 @@ function TopPlayers({
                     key={`${p.jersey}-${i}`}
                     className="flex items-center gap-2.5 rounded-lg bg-card/60 px-2.5 py-1.5"
                   >
-                    <RatingChip rating={p.rating as number} />
                     <span className="w-5 shrink-0 text-right font-numeric tabular-nums text-xs text-muted-foreground">
                       {p.jersey}
                     </span>
@@ -322,24 +321,30 @@ function TopPlayers({
                         {p.position}
                       </span>
                     )}
+                    <RatingChip rating={p.rating as number} />
                   </li>
                 ))}
               </ul>
             )}
 
             {lead && lead.leaders.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-col gap-1 rounded-lg border border-border/50 bg-card/30 p-2.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Match leaders
+                </span>
                 {lead.leaders.map((x) => (
-                  <span
+                  <div
                     key={x.category}
-                    className="inline-flex items-baseline gap-1 rounded-full border border-border/60 bg-card/40 px-2 py-0.5 text-[11px]"
+                    className="flex items-center justify-between gap-2 text-sm"
                   >
-                    <span className="font-numeric tabular-nums font-bold text-gold">
-                      {x.value}
+                    <span className="text-muted-foreground">{x.category}</span>
+                    <span className="truncate text-right">
+                      {x.player}{" "}
+                      <span className="font-numeric tabular-nums font-bold text-gold">
+                        {x.value}
+                      </span>
                     </span>
-                    <span className="font-medium">{x.player}</span>
-                    <span className="text-muted-foreground">· {x.category}</span>
-                  </span>
+                  </div>
                 ))}
               </div>
             )}
@@ -406,28 +411,28 @@ function PlayerStatCard({
   return (
     <div className="rounded-xl border border-gold/30 bg-gold/5 p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="flex items-center gap-2 text-sm font-semibold">
-          {player.rating != null && <RatingChip rating={player.rating} />}
-          <span>
-            <span className="font-numeric tabular-nums text-muted-foreground">
-              #{player.jersey}
-            </span>{" "}
-            {player.name}
-            {player.position && (
-              <span className="ml-1.5 text-[10px] uppercase text-muted-foreground/70">
-                {player.position}
-              </span>
-            )}
-          </span>
+        <span className="min-w-0 truncate text-sm font-semibold">
+          <span className="font-numeric tabular-nums text-muted-foreground">
+            #{player.jersey}
+          </span>{" "}
+          {player.name}
+          {player.position && (
+            <span className="ml-1.5 text-[10px] uppercase text-muted-foreground/70">
+              {player.position}
+            </span>
+          )}
         </span>
-        <button
-          type="button"
-          onClick={onClose}
-          className="shrink-0 text-xs text-muted-foreground hover:text-foreground"
-          aria-label="Close"
-        >
-          ✕
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {player.rating != null && <RatingChip rating={player.rating} />}
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-xs text-muted-foreground hover:text-foreground"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
       </div>
       {player.stats.length > 0 ? (
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
