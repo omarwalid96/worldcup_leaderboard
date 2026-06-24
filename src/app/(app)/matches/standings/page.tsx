@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TeamFlag } from "@/components/match/team-flag";
 import { KickoffTime } from "@/components/match/kickoff-time";
+import { BracketZoom } from "@/components/match/bracket-zoom";
 import { requireProfile } from "@/lib/auth/session";
 import {
   getStandingsAndBracket,
@@ -94,11 +95,35 @@ function Side({ team }: { team: BracketTeam | null }) {
   );
 }
 
-function BracketNode({ m, userTz }: { m: BracketMatch; userTz: string }) {
+function BracketNode({
+  m,
+  userTz,
+  col,
+}: {
+  m: BracketMatch;
+  userTz: string;
+  col?: number;
+}) {
   const predicted = !m.real && (!!m.home?.predicted || !!m.away?.predicted);
   return (
-    <Card className="overflow-hidden">
-      <CardContent className="flex flex-col gap-1.5 p-2.5">
+    <div className="relative">
+      {/* Connector stubs into the column gap. Drawn in a visible border tone so
+          they read against the dark background. Left stub for rounds after R32,
+          right stub for rounds before the Final. */}
+      {col != null && col > 0 && (
+        <span
+          aria-hidden
+          className="absolute right-full top-1/2 h-0.5 w-3 -translate-y-1/2 bg-gold/50"
+        />
+      )}
+      {col != null && col < 4 && (
+        <span
+          aria-hidden
+          className="absolute left-full top-1/2 h-0.5 w-3 -translate-y-1/2 bg-gold/50"
+        />
+      )}
+      <Card className="overflow-hidden">
+        <CardContent className="flex flex-col gap-1.5 p-2.5">
         <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
           <KickoffTime kickoffUtc={m.kickoffUtc} fallbackTz={userTz} format="d MMM · HH:mm" />
           {predicted ? (
@@ -109,10 +134,11 @@ function BracketNode({ m, userTz }: { m: BracketMatch; userTz: string }) {
             <span className="text-[10px]">#{m.matchNo}</span>
           )}
         </div>
-        <Side team={m.home} />
-        <Side team={m.away} />
-      </CardContent>
-    </Card>
+          <Side team={m.home} />
+          <Side team={m.away} />
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -173,9 +199,9 @@ export default async function StandingsPage() {
           )}
 
           {/* Connected bracket: one flex column per round, evenly spaced so each
-              tie sits between its two feeders. Scrolls horizontally on mobile. */}
-          <div className="overflow-x-auto pb-2">
-            <div className="flex min-w-[920px] gap-3">
+              tie sits between its two feeders. Zoom + pan via BracketZoom. */}
+          <BracketZoom>
+            <div className="flex w-[920px] gap-3">
               {BRACKET_COLUMNS.map((nos, col) => (
                 <div key={col} className="flex flex-1 flex-col">
                   <h3 className="mb-2 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -185,14 +211,14 @@ export default async function StandingsPage() {
                     {nos.map((no) => {
                       const m = byNo.get(no);
                       return m ? (
-                        <BracketNode key={no} m={m} userTz={profile.timezone} />
+                        <BracketNode key={no} m={m} userTz={profile.timezone} col={col} />
                       ) : null;
                     })}
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          </BracketZoom>
 
           {thirdPlace && (
             <div className="max-w-xs">
