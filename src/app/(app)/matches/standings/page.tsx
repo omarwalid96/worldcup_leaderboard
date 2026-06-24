@@ -95,35 +95,11 @@ function Side({ team }: { team: BracketTeam | null }) {
   );
 }
 
-function BracketNode({
-  m,
-  userTz,
-  col,
-}: {
-  m: BracketMatch;
-  userTz: string;
-  col?: number;
-}) {
+function BracketNode({ m, userTz }: { m: BracketMatch; userTz: string }) {
   const predicted = !m.real && (!!m.home?.predicted || !!m.away?.predicted);
   return (
-    <div className="relative">
-      {/* Connector stubs into the column gap. Drawn in a visible border tone so
-          they read against the dark background. Left stub for rounds after R32,
-          right stub for rounds before the Final. */}
-      {col != null && col > 0 && (
-        <span
-          aria-hidden
-          className="absolute right-full top-1/2 h-0.5 w-3 -translate-y-1/2 bg-gold/50"
-        />
-      )}
-      {col != null && col < 4 && (
-        <span
-          aria-hidden
-          className="absolute left-full top-1/2 h-0.5 w-3 -translate-y-1/2 bg-gold/50"
-        />
-      )}
-      <Card className="overflow-hidden">
-        <CardContent className="flex flex-col gap-1.5 p-2.5">
+    <Card className="overflow-hidden">
+      <CardContent className="flex flex-col gap-1.5 p-2.5">
         <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
           <KickoffTime kickoffUtc={m.kickoffUtc} fallbackTz={userTz} format="d MMM · HH:mm" />
           {predicted ? (
@@ -134,15 +110,81 @@ function BracketNode({
             <span className="text-[10px]">#{m.matchNo}</span>
           )}
         </div>
-          <Side team={m.home} />
-          <Side team={m.away} />
-        </CardContent>
-      </Card>
-    </div>
+        <Side team={m.home} />
+        <Side team={m.away} />
+      </CardContent>
+    </Card>
   );
 }
 
 const COLUMN_LABELS = ["Round of 32", "Round of 16", "Quarter-finals", "Semi-finals", "Final"];
+const CONNECTOR = "border-gold/45";
+
+/**
+ * One round's column. Nodes are wrapped in feeder pairs; each pair draws a CSS
+ * elbow (vertical line joining the two nodes + a horizontal stub to the right)
+ * that lands exactly on the next round's node center — both are centered by
+ * `justify-around`, so the geometry holds at any height. The Final (last col)
+ * draws no outgoing elbow; rounds after R32 draw an incoming stub on the left.
+ */
+function BracketColumn({
+  nos,
+  col,
+  byNo,
+  userTz,
+}: {
+  nos: number[];
+  col: number;
+  byNo: Map<number, BracketMatch>;
+  userTz: string;
+}) {
+  const isLast = col === BRACKET_COLUMNS.length - 1;
+  const hasIncoming = col > 0;
+  // Pair consecutive matches (feeders of the same next-round match).
+  const pairs: number[][] = [];
+  for (let i = 0; i < nos.length; i += 2) pairs.push(nos.slice(i, i + 2));
+
+  return (
+    <div className="flex flex-1 flex-col">
+      <h3 className="mb-2 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {COLUMN_LABELS[col]}
+      </h3>
+      <div className="flex flex-1 flex-col justify-around gap-2">
+        {pairs.map((pair, pi) => (
+          <div key={pi} className="relative flex flex-col justify-around gap-2">
+            {pair.map((no) => {
+              const m = byNo.get(no);
+              if (!m) return null;
+              return (
+                <div key={no} className="relative">
+                  {/* incoming stub: from the left column's elbow into this node */}
+                  {hasIncoming && (
+                    <span
+                      aria-hidden
+                      className={`pointer-events-none absolute right-full top-1/2 h-0.5 w-3 -translate-y-1/2 ${CONNECTOR.replace("border", "bg")}`}
+                    />
+                  )}
+                  <BracketNode m={m} userTz={userTz} />
+                </div>
+              );
+            })}
+            {/* Outgoing elbow ("]"): two arms reaching each node center (top 25% /
+                bottom 25% of the pair) joined by a vertical line, then a stub to
+                the next column. Sits in the 12px column gap (left-full, w-3). The
+                pair's vertical center == the next round's node center (both laid
+                out by justify-around), so the stub lands on it. */}
+            {!isLast && pair.length === 2 && (
+              <span
+                aria-hidden
+                className={`pointer-events-none absolute left-full top-[25%] bottom-[25%] w-3 border-y-2 border-r-2 ${CONNECTOR}`}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default async function StandingsPage() {
   const profile = await requireProfile();
@@ -203,19 +245,13 @@ export default async function StandingsPage() {
           <BracketZoom>
             <div className="flex w-[920px] gap-3">
               {BRACKET_COLUMNS.map((nos, col) => (
-                <div key={col} className="flex flex-1 flex-col">
-                  <h3 className="mb-2 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {COLUMN_LABELS[col]}
-                  </h3>
-                  <div className="flex flex-1 flex-col justify-around gap-2">
-                    {nos.map((no) => {
-                      const m = byNo.get(no);
-                      return m ? (
-                        <BracketNode key={no} m={m} userTz={profile.timezone} col={col} />
-                      ) : null;
-                    })}
-                  </div>
-                </div>
+                <BracketColumn
+                  key={col}
+                  nos={nos}
+                  col={col}
+                  byNo={byNo}
+                  userTz={profile.timezone}
+                />
               ))}
             </div>
           </BracketZoom>
