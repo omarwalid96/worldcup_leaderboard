@@ -160,12 +160,13 @@ function BracketColumn({
               const m = byNo.get(no);
               if (!m) return null;
               return (
-                <div key={no} className="relative flex flex-1 items-center">
-                  {/* incoming stub: from the left column's elbow into this node */}
+                <div key={no} className="relative flex flex-1 items-center py-2">
+                  {/* incoming line: spans the left half of the gap, from the
+                      previous column's elbow to this card's left edge. */}
                   {hasIncoming && (
                     <span
                       aria-hidden
-                      className={`pointer-events-none absolute right-full top-1/2 h-0.5 w-3 -translate-y-1/2 ${CONNECTOR.replace("border", "bg")}`}
+                      className={`pointer-events-none absolute right-full top-1/2 h-0.5 w-5 -translate-y-1/2 ${CONNECTOR.replace("border", "bg")}`}
                     />
                   )}
                   <div className="w-full">
@@ -174,14 +175,20 @@ function BracketColumn({
                 </div>
               );
             })}
-            {/* Outgoing elbow ("]"): vertical line from the top card's center
-                (25%) to the bottom card's center (75%), with arms, then meets the
-                next column at the pair center (50%). Sits in the 12px gap. */}
+            {/* Outgoing elbow ("]"): vertical line joining the two card centers
+                (25% → 75%) with arms, then a horizontal line across the right
+                half of the gap to meet the next round's card. */}
             {!isLast && pair.length === 2 && (
-              <span
-                aria-hidden
-                className={`pointer-events-none absolute left-full top-1/4 bottom-1/4 w-3 border-y-2 border-r-2 ${CONNECTOR}`}
-              />
+              <>
+                <span
+                  aria-hidden
+                  className={`pointer-events-none absolute left-full top-1/4 bottom-1/4 w-5 border-y-2 border-r-2 ${CONNECTOR}`}
+                />
+                <span
+                  aria-hidden
+                  className={`pointer-events-none absolute left-[calc(100%+1.25rem)] top-1/2 h-0.5 w-5 -translate-y-1/2 ${CONNECTOR.replace("border", "bg")}`}
+                />
+              </>
             )}
           </div>
         ))}
@@ -247,7 +254,7 @@ export default async function StandingsPage() {
           {/* Connected bracket: one flex column per round, evenly spaced so each
               tie sits between its two feeders. Zoom + pan via BracketZoom. */}
           <BracketZoom>
-            <div className="flex w-[920px] gap-3">
+            <div className="flex w-[1040px] gap-10">
               {BRACKET_COLUMNS.map((nos, col) => (
                 <BracketColumn
                   key={col}

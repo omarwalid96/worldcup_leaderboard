@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Minus, Plus, Maximize2 } from "lucide-react";
 
-const TRACK_WIDTH = 920; // matches the bracket track's min-width
+const TRACK_WIDTH = 1040; // matches the bracket track's width
 const MIN = 0.4;
 const MAX = 1.5;
 const STEP = 0.15;
