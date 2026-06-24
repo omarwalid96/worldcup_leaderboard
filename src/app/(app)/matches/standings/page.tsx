@@ -149,14 +149,18 @@ function BracketColumn({
       <h3 className="mb-2 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {COLUMN_LABELS[col]}
       </h3>
-      <div className="flex flex-1 flex-col justify-around gap-2">
+      <div className="flex flex-1 flex-col">
         {pairs.map((pair, pi) => (
-          <div key={pi} className="relative flex flex-col justify-around gap-2">
+          // Each pair is an equal flex slice of the column; its two cards get
+          // equal-height sub-slices and are vertically centered in them. That
+          // makes each card's center land at exactly 25% / 75% of the pair —
+          // independent of card height — so the elbow arms hit the centers.
+          <div key={pi} className="relative flex flex-1 flex-col">
             {pair.map((no) => {
               const m = byNo.get(no);
               if (!m) return null;
               return (
-                <div key={no} className="relative">
+                <div key={no} className="relative flex flex-1 items-center">
                   {/* incoming stub: from the left column's elbow into this node */}
                   {hasIncoming && (
                     <span
@@ -164,19 +168,19 @@ function BracketColumn({
                       className={`pointer-events-none absolute right-full top-1/2 h-0.5 w-3 -translate-y-1/2 ${CONNECTOR.replace("border", "bg")}`}
                     />
                   )}
-                  <BracketNode m={m} userTz={userTz} />
+                  <div className="w-full">
+                    <BracketNode m={m} userTz={userTz} />
+                  </div>
                 </div>
               );
             })}
-            {/* Outgoing elbow ("]"): two arms reaching each node center (top 25% /
-                bottom 25% of the pair) joined by a vertical line, then a stub to
-                the next column. Sits in the 12px column gap (left-full, w-3). The
-                pair's vertical center == the next round's node center (both laid
-                out by justify-around), so the stub lands on it. */}
+            {/* Outgoing elbow ("]"): vertical line from the top card's center
+                (25%) to the bottom card's center (75%), with arms, then meets the
+                next column at the pair center (50%). Sits in the 12px gap. */}
             {!isLast && pair.length === 2 && (
               <span
                 aria-hidden
-                className={`pointer-events-none absolute left-full top-[25%] bottom-[25%] w-3 border-y-2 border-r-2 ${CONNECTOR}`}
+                className={`pointer-events-none absolute left-full top-1/4 bottom-1/4 w-3 border-y-2 border-r-2 ${CONNECTOR}`}
               />
             )}
           </div>
