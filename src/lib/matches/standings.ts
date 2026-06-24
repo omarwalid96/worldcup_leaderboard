@@ -120,6 +120,28 @@ const KO: Record<number, [number, number]> = {
   104: [101, 102],
 };
 
+// Bracket column order, derived by DFS from the final so feeders sit directly
+// left of the match they feed (the classic stacked-bracket layout). Each entry
+// is the ordered list of match numbers for one round, top-to-bottom.
+// Index 0 = R32, last = Final. Third place (103) is shown separately.
+export const BRACKET_COLUMNS: number[][] = (() => {
+  const order: number[][] = [[], [], [], [], []]; // R32, R16, QF, SF, Final
+  // col: 4=Final, 3=SF, 2=QF, 1=R16, 0=R32. In-order DFS so each round's list
+  // comes out top-to-bottom matching its feeders.
+  const walk = (no: number, col: number) => {
+    if (KO[no] && col > 0) {
+      const [a, b] = KO[no];
+      walk(a, col - 1);
+      order[col].push(no);
+      walk(b, col - 1);
+    } else {
+      order[col].push(no); // R32 leaf
+    }
+  };
+  walk(104, 4);
+  return order;
+})();
+
 export interface BracketTeam {
   team: string;
   code: string | null;
@@ -188,14 +210,13 @@ export function projectBracket(tables: GroupTable[], koMatches: Match[]): Bracke
           ] as [BracketTeam, BracketTeam])
         : null;
 
+    // Only R32 is projected from group standings. Later rounds (R16+) stay TBD
+    // until the real teams are known — we don't predict knockout results.
     let out: { pair: [BracketTeam | null, BracketTeam | null]; real: boolean };
     if (realPair) {
       out = { pair: realPair, real: true };
     } else if (R32[no]) {
       out = { pair: [slot(R32[no][0]), slot(R32[no][1])], real: false };
-    } else if (KO[no]) {
-      const [a, b] = KO[no];
-      out = { pair: [advance(a), advance(b)], real: false };
     } else {
       out = { pair: [null, null], real: false };
     }
@@ -203,17 +224,6 @@ export function projectBracket(tables: GroupTable[], koMatches: Match[]): Bracke
     return out;
   };
 
-  // Projected advancer = the structurally stronger seed of a tie we don't score.
-  // We can't predict an actual result, so take whichever side is "higher": a
-  // real team beats a TBD; otherwise just take the home/first slot. This keeps
-  // the bracket filling forward sensibly without inventing scorelines.
-  const advance = (no: number): BracketTeam | null => {
-    const { pair } = resolve(no);
-    return pair[0] ?? pair[1];
-  };
-
-  // R32 must resolve first (KO reads R32 winners). Order doesn't matter past that
-  // because resolve() recurses + memoises.
   const out: BracketMatch[] = [];
   for (const m of koMatches) {
     const no = Number(m.externalId.replace("wc26-", ""));

@@ -8,6 +8,7 @@ import { KickoffTime } from "@/components/match/kickoff-time";
 import { requireProfile } from "@/lib/auth/session";
 import {
   getStandingsAndBracket,
+  BRACKET_COLUMNS,
   type BracketMatch,
   type BracketTeam,
   type GroupTable,
@@ -15,22 +16,6 @@ import {
 
 export const metadata: Metadata = { title: "Standings" };
 
-const STAGE_LABEL: Record<string, string> = {
-  round_of_32: "Round of 32",
-  round_of_16: "Round of 16",
-  quarter_final: "Quarter-finals",
-  semi_final: "Semi-finals",
-  third_place: "Third place",
-  final: "Final",
-};
-const STAGE_ORDER = [
-  "round_of_32",
-  "round_of_16",
-  "quarter_final",
-  "semi_final",
-  "third_place",
-  "final",
-];
 
 function GroupCard({ table }: { table: GroupTable }) {
   return (
@@ -109,16 +94,20 @@ function Side({ team }: { team: BracketTeam | null }) {
   );
 }
 
-function BracketTie({ m, userTz }: { m: BracketMatch; userTz: string }) {
+function BracketNode({ m, userTz }: { m: BracketMatch; userTz: string }) {
+  const predicted = !m.real && (!!m.home?.predicted || !!m.away?.predicted);
   return (
     <Card className="overflow-hidden">
-      <CardContent className="flex flex-col gap-1.5 p-3">
-        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-          <span>
-            #{m.matchNo}
-            {m.venue ? ` · ${m.venue}` : ""}
-          </span>
+      <CardContent className="flex flex-col gap-1.5 p-2.5">
+        <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
           <KickoffTime kickoffUtc={m.kickoffUtc} fallbackTz={userTz} format="d MMM · HH:mm" />
+          {predicted ? (
+            <span className="rounded-sm bg-info/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-info">
+              Predicted
+            </span>
+          ) : (
+            <span className="text-[10px]">#{m.matchNo}</span>
+          )}
         </div>
         <Side team={m.home} />
         <Side team={m.away} />
@@ -127,10 +116,14 @@ function BracketTie({ m, userTz }: { m: BracketMatch; userTz: string }) {
   );
 }
 
+const COLUMN_LABELS = ["Round of 32", "Round of 16", "Quarter-finals", "Semi-finals", "Final"];
+
 export default async function StandingsPage() {
   const profile = await requireProfile();
   const { groups, bracket } = await getStandingsAndBracket();
 
+  const byNo = new Map(bracket.map((m) => [m.matchNo, m]));
+  const thirdPlace = bracket.find((m) => m.stage === "third_place") ?? null;
   const anyPredicted = bracket.some((m) => m.home?.predicted || m.away?.predicted);
 
   return (
@@ -170,28 +163,45 @@ export default async function StandingsPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="knockout" className="mt-5 flex flex-col gap-6">
+        <TabsContent value="knockout" className="mt-5 flex flex-col gap-5">
           {anyPredicted && (
             <p className="text-xs text-muted-foreground">
-              <span className="italic">Italic</span> teams are projected from current group
-              standings (top 2 advance, plus the 8 best third-placed teams). Real teams replace
-              them once groups finish.
+              Ties marked <span className="font-semibold text-info">Predicted</span> are projected
+              from current group standings (top 2 advance, plus the 8 best third-placed teams). They
+              fill in for real once each round is decided.
             </p>
           )}
-          {STAGE_ORDER.map((stage) => {
-            const ms = bracket.filter((m) => m.stage === stage);
-            if (!ms.length) return null;
-            return (
-              <section key={stage}>
-                <h2 className="mb-2 font-display text-lg">{STAGE_LABEL[stage] ?? stage}</h2>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {ms.map((m) => (
-                    <BracketTie key={m.matchNo} m={m} userTz={profile.timezone} />
-                  ))}
+
+          {/* Connected bracket: one flex column per round, evenly spaced so each
+              tie sits between its two feeders. Scrolls horizontally on mobile. */}
+          <div className="overflow-x-auto pb-2">
+            <div className="flex min-w-[920px] gap-3">
+              {BRACKET_COLUMNS.map((nos, col) => (
+                <div key={col} className="flex flex-1 flex-col">
+                  <h3 className="mb-2 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {COLUMN_LABELS[col]}
+                  </h3>
+                  <div className="flex flex-1 flex-col justify-around gap-2">
+                    {nos.map((no) => {
+                      const m = byNo.get(no);
+                      return m ? (
+                        <BracketNode key={no} m={m} userTz={profile.timezone} />
+                      ) : null;
+                    })}
+                  </div>
                 </div>
-              </section>
-            );
-          })}
+              ))}
+            </div>
+          </div>
+
+          {thirdPlace && (
+            <div className="max-w-xs">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Third place
+              </h3>
+              <BracketNode m={thirdPlace} userTz={profile.timezone} />
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>
