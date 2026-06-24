@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { CalendarDays } from "lucide-react";
+import Link from "next/link";
+import { CalendarDays, Trophy } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MatchList } from "@/components/match/match-list";
@@ -38,11 +39,19 @@ export default async function MatchesPage() {
           not the football API; every 5 min, visible tab only). */}
       {live.length > 0 && <LiveRefresher />}
 
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Matches</h1>
-        <p className="text-sm text-muted-foreground">
-          Predictions open 24 hours before kickoff. Tap a card to pick.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Matches</h1>
+          <p className="text-sm text-muted-foreground">
+            Predictions open 24 hours before kickoff. Tap a card to pick.
+          </p>
+        </div>
+        <Link
+          href="/matches/standings"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-gold/40 bg-gold/10 px-3 py-2 text-sm font-medium text-gold transition-colors hover:bg-gold/20"
+        >
+          <Trophy className="size-4" /> Standings
+        </Link>
       </div>
 
       <MatchSearch allMatches={all} userTz={profile.timezone}>
