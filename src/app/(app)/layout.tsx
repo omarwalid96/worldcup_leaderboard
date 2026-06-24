@@ -4,9 +4,9 @@ import { BottomNav, SideNav } from "@/components/layout/app-nav";
 import { UserMenu } from "@/components/layout/user-menu";
 import { requireProfile } from "@/lib/auth/session";
 import { SwRegister } from "@/components/sw-register";
-import { EgyptHype } from "@/components/match/egypt-hype";
+import { TeamHype } from "@/components/match/team-hype";
 import { LiveIsland } from "@/components/match/live-island";
-import { getTodaysEgyptMatch } from "@/lib/matches/egypt";
+import { getTodaysTeamMatch } from "@/lib/matches/team-hype";
 import { NativeInit } from "@/components/native-init";
 
 export default async function AppLayout({
@@ -15,7 +15,10 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const profile = await requireProfile();
-  const egyptMatch = await getTodaysEgyptMatch();
+  const [egyptMatch, brazilMatch] = await Promise.all([
+    getTodaysTeamMatch("egypt"),
+    getTodaysTeamMatch("brazil"),
+  ]);
 
   return (
     <div className="bg-pitch min-h-dvh">
@@ -42,8 +45,9 @@ export default async function AppLayout({
           is in play, hidden otherwise. Self-contained client component. */}
       <LiveIsland />
 
-      {/* Egypt match-day hype — only renders on the day of an Egypt game. */}
-      {egyptMatch && <EgyptHype match={egyptMatch} />}
+      {/* Match-day hype — only renders on the day of that country's game. */}
+      {egyptMatch && <TeamHype match={egyptMatch} />}
+      {brazilMatch && <TeamHype match={brazilMatch} />}
 
       <div className="mx-auto flex max-w-5xl gap-8 px-4 py-6">
         {/* Desktop sidebar */}
