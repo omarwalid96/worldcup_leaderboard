@@ -8,32 +8,32 @@ import { applyMove, respondToChallenge } from "@/lib/games/actions";
 import { haptic, celebrateSave } from "@/lib/celebrate";
 import type { GameComponentProps } from "@/lib/games/types";
 import {
-  createInitialState,
-  TICK_MS,
   FIELD_W,
   FIELD_H,
   GOAL_HALF,
   PLAYER_RADIUS,
   BALL_RADIUS,
-  step,
-  resetKickoff,
-  cloneState,
   type HaxState,
   type Vec2,
-  type PlayerInput,
 } from "@/lib/games/haxball/physics";
 import { GOAL_CAP } from "@/lib/games/haxball/reducer";
 
 const SERVER_URL = process.env.NEXT_PUBLIC_HAXBALL_WS; // wss://haxball-eznii.fly.dev
-const INPUT_HZ_MS = 33; // send input ~30Hz
-const MIN_INTERP_MS = TICK_MS;      // floor so a fast burst doesn't render instantly
-const MAX_EXTRAP = 1.6;             // allow ~60% coast past B when a packet is late (vs freezing)
+const INPUT_HZ_MS = 33;        // send input ~30Hz (server runs its own 60Hz sim regardless)
+const RENDER_DELAY_MS = 100;   // render this far in the past so we always interpolate between two real snapshots
+const JOY_DEADZONE = 0.18;     // ignore tiny thumb wobble near the joystick centre
 
 /**
- * Real-time 1v1 HaxBall. A dedicated WS server (server/haxball) runs the
- * authoritative physics; this client just sends input and renders the state it
- * pushes — no client-side sim, no host/guest split. Both players are equal.
- * The match still finishes via applyMove when someone reaches the cap.
+ * Real-time 1v1 HaxBall. A dedicated WS server (server/haxball) runs the ONE
+ * authoritative 60Hz physics sim; this client only sends input and renders the
+ * snapshots it pushes.
+ *
+ * Netcode: pure snapshot interpolation, no client-side prediction. We buffer
+ * incoming snapshots and render `RENDER_DELAY_MS` in the past, lerping between
+ * the two snapshots that straddle that render time. Everything — your paddle,
+ * the opponent, the ball — comes from the same server clock, so nothing
+ * rubber-bands. Tradeoff: your own input shows the round-trip latency; that's
+ * the standard, jitter-free HaxBall-clone model and is fine on normal pings.
  */
 export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameComponentProps) {
   const { match, setMatch } = useGameRoom(matchId, initialMatch, currentUserId);
@@ -54,19 +54,13 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const inputRef = useRef<Vec2 & { kick: boolean }>({ x: 0, y: 0, kick: false });
-  // Two latest server snapshots for render interpolation.
-  const snapA = useRef<HaxState>(createInitialState());
-  const snapB = useRef<HaxState>(createInitialState());
-  const snapBAt = useRef(0);
-  const interpMs = useRef(TICK_MS); // measured gap between the last two packets (smoothed)
+  // Snapshot buffer for render interpolation: { at, s } sorted by arrival.
+  const buffer = useRef<{ at: number; s: HaxState }[]>([]);
+  // Clock offset: client perf-clock time that maps to "now" on the server stream.
+  // We render at (latest packet arrival) - RENDER_DELAY_MS.
   const finishedRef = useRef(false);
 
-  // Client prediction and reconciliation state
-  const predictedState = useRef<HaxState>(createInitialState());
-  const pendingInputs = useRef<{ seq: number; input: PlayerInput }[]>([]);
-  const nextInputSeq = useRef(1);
-
-  // Connect to the authoritative server; render whatever it pushes.
+  // ── Connect: send input, fill the snapshot buffer ──────────────────────────
   useEffect(() => {
     if (!playable) return;
     if (!SERVER_URL) { setError("Game server not configured."); return; }
@@ -75,49 +69,20 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
 
     ws.onopen = () => {
       setConnected(true);
-      console.log("[hax] ws open → join", { matchId, userId: currentUserId });
       ws.send(JSON.stringify({ t: "join", matchId, userId: currentUserId }));
     };
-    ws.onclose = (e) => { setConnected(false); console.log("[hax] ws close", e.code, e.reason); };
-    ws.onerror = (e) => { setConnected(false); console.log("[hax] ws error", e); };
+    ws.onclose = () => setConnected(false);
+    ws.onerror = () => setConnected(false);
     ws.onmessage = (ev) => {
-      let m: { t: string; s?: HaxState; slot?: string; ack?: { p0: number; p1: number } };
+      let m: { t: string; s?: HaxState };
       try { m = JSON.parse(ev.data); } catch { return; }
-      if (m.t === "joined") { console.log("[hax] joined as", m.slot); return; }
       if (m.t !== "state" || !m.s) return;
       const s = m.s;
-      const now = performance.now();
-      // Smooth the measured inter-packet gap so render speed tracks actual
-      // delivery rate (rides jitter instead of freezing-then-snapping).
-      const gap = Math.max(MIN_INTERP_MS, now - snapBAt.current);
-      interpMs.current = interpMs.current * 0.8 + gap * 0.2;
-      snapA.current = snapB.current;
-      snapB.current = s;
-      snapBAt.current = now;
+      const buf = buffer.current;
+      buf.push({ at: performance.now(), s });
+      // Keep ~1s of history; drop the rest.
+      if (buf.length > 64) buf.shift();
       if (s.scoreA !== hud.a || s.scoreB !== hud.b) setHud({ a: s.scoreA, b: s.scoreB });
-
-      // --- SERVER RECONCILIATION ---
-      const mySlot = isP1 ? "p0" : "p1";
-      const serverAck = m.ack ? m.ack[mySlot] : 0;
-      if (serverAck) {
-        // Discard inputs that have been processed by the server
-        pendingInputs.current = pendingInputs.current.filter((item) => item.seq > serverAck);
-
-        // Re-play pending inputs on top of the server state
-        let tempState = cloneState(s);
-        const oppSlot = isP1 ? "p1" : "p0";
-        for (const item of pendingInputs.current) {
-          const inputMap = {
-            [mySlot]: item.input,
-            [oppSlot]: { move: { x: 0, y: 0 }, kick: false },
-          };
-          tempState = step(tempState, inputMap, TICK_MS / 1000);
-          if (tempState.goalEvent) tempState = resetKickoff(tempState, tempState.goalEvent);
-        }
-        predictedState.current = tempState;
-      } else {
-        predictedState.current = cloneState(s);
-      }
 
       // Either client commits the finished result once (idempotent server-side).
       if (!finishedRef.current && (s.scoreA >= GOAL_CAP || s.scoreB >= GOAL_CAP)) {
@@ -132,9 +97,21 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
     return () => { ws.close(); };
     // hud read via closure; matchId/currentUserId/playable are the real deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playable, matchId, currentUserId, isP1]);
+  }, [playable, matchId, currentUserId]);
 
-  // Render & Physics Loop: runs client prediction at 60Hz and draws the combined state.
+  // ── Send input at a fixed cadence (decoupled from render) ──────────────────
+  useEffect(() => {
+    if (!playable) return;
+    const id = setInterval(() => {
+      const ws = wsRef.current;
+      if (ws?.readyState !== WebSocket.OPEN) return;
+      const i = inputRef.current;
+      ws.send(JSON.stringify({ t: "input", move: { x: i.x, y: i.y, kick: i.kick } }));
+    }, INPUT_HZ_MS);
+    return () => clearInterval(id);
+  }, [playable]);
+
+  // ── Render loop: draw the interpolated past ────────────────────────────────
   useEffect(() => {
     if (!playable) return;
     const canvas = canvasRef.current;
@@ -142,93 +119,34 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
     if (!ctx) return;
     let raf = 0;
 
-    let lastTime = performance.now();
-    let accumulator = 0;
-
     const frame = () => {
       raf = requestAnimationFrame(frame);
-      const now = performance.now();
-      let dt = now - lastTime;
-      lastTime = now;
+      const buf = buffer.current;
+      if (buf.length === 0) return;
 
-      // Limit dt to avoid "spiral of death" during lag spikes or tab switching
-      if (dt > 250) dt = 250;
+      // Render RENDER_DELAY_MS behind the newest packet so we sit between two
+      // real snapshots and never extrapolate into the unknown.
+      const renderAt = buf[buf.length - 1].at - RENDER_DELAY_MS;
 
-      accumulator += dt;
-      while (accumulator >= TICK_MS) {
-        // 1. Capture current input
-        const currentInput = {
-          move: { x: inputRef.current.x, y: inputRef.current.y },
-          kick: inputRef.current.kick,
-        };
-
-        // 2. Assign sequence number
-        const seq = nextInputSeq.current++;
-        pendingInputs.current.push({ seq, input: currentInput });
-
-        // 3. Send input to server immediately (flat format: { x, y, kick } matching server's normInput)
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify({
-            t: "input",
-            seq,
-            move: {
-              x: currentInput.move.x,
-              y: currentInput.move.y,
-              kick: currentInput.kick,
-            },
-          }));
+      // Find the pair (a,b) straddling renderAt.
+      let a = buf[0], b = buf[buf.length - 1];
+      for (let k = 0; k < buf.length - 1; k++) {
+        if (buf[k].at <= renderAt && buf[k + 1].at >= renderAt) {
+          a = buf[k];
+          b = buf[k + 1];
+          break;
         }
-
-        // 4. Simulate physics locally
-        const mySlot = isP1 ? "p0" : "p1";
-        const oppSlot = isP1 ? "p1" : "p0";
-        const inputMap = {
-          [mySlot]: currentInput,
-          [oppSlot]: { move: { x: 0, y: 0 }, kick: false },
-        };
-
-        predictedState.current = step(predictedState.current, inputMap, TICK_MS / 1000);
-        if (predictedState.current.goalEvent) {
-          predictedState.current = resetKickoff(predictedState.current, predictedState.current.goalEvent);
-        }
-
-        accumulator -= TICK_MS;
       }
-
-      // Draw frame
-      const goalSnap = snapB.current.goalEvent != null;
-      const t = goalSnap
-        ? 1
-        : Math.min(MAX_EXTRAP, (performance.now() - snapBAt.current) / interpMs.current);
-
-      const oppIndex = isP1 ? 1 : 0;
-
-      // Construct the combined renderState:
-      // - Local player: predicted position
-      // - Remote player: interpolated position between snapA and snapB
-      // - Ball: predicted position
-      const renderState: HaxState = {
-        ...predictedState.current,
-        players: predictedState.current.players.map((pb, idx) => {
-          if (idx === oppIndex) {
-            const posA = snapA.current.players[idx]?.pos ?? pb.pos;
-            const posB = snapB.current.players[idx]?.pos ?? pb.pos;
-            return {
-              ...pb,
-              pos: lerpVec(posA, posB, t),
-            };
-          }
-          return pb;
-        }),
-        ball: predictedState.current.ball,
-      };
-
-      draw(ctx, renderState);
+      const span = b.at - a.at;
+      const t = span > 0 ? Math.max(0, Math.min(1, (renderAt - a.at) / span)) : 1;
+      // A goal resets positions discontinuously; don't lerp across that.
+      const snap = b.s.goalEvent != null ? b.s : lerpState(a.s, b.s, t);
+      draw(ctx, snap);
     };
 
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [playable, isP1]);
+  }, [playable]);
 
   function respond(accept: boolean) {
     if (isPending) return;
@@ -325,7 +243,7 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
   );
 }
 
-/** Lerp positions between two snapshots (vel/scores from `b`). 20Hz → 60fps. */
+/** Lerp positions between two snapshots (vel/scores from `b`). */
 function lerpVec(a: Vec2, b: Vec2, t: number): Vec2 {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
@@ -392,7 +310,15 @@ function Controls({ onMove, onKick }: { onMove: (v: Vec2) => void; onKick: (k: b
     const clamped = Math.min(d, R);
     dx = (dx / d) * clamped; dy = (dy / d) * clamped;
     setKnob({ x: dx, y: dy });
-    onMove({ x: dx / R, y: dy / R });
+    // Deadzone: zero out tiny wobble, then rescale so the live range stays full 0..1.
+    let nx = dx / R, ny = dy / R;
+    const mag = Math.hypot(nx, ny);
+    if (mag < JOY_DEADZONE) { nx = 0; ny = 0; }
+    else {
+      const scaled = (mag - JOY_DEADZONE) / (1 - JOY_DEADZONE) / mag;
+      nx *= scaled; ny *= scaled;
+    }
+    onMove({ x: nx, y: ny });
   }
   function reset() { setKnob({ x: 0, y: 0 }); onMove({ x: 0, y: 0 }); }
 
@@ -400,12 +326,13 @@ function Controls({ onMove, onKick }: { onMove: (v: Vec2) => void; onKick: (k: b
     <div className="flex w-full max-w-md items-center justify-between px-2">
       <div
         ref={baseRef}
+        // Capture the pointer on this element so its moves keep firing even when
+        // the thumb slides outside the circle. Track by buttons OR active touch.
         onPointerDown={(e) => { (e.target as HTMLElement).setPointerCapture(e.pointerId); handle(e); }}
-        onPointerMove={(e) => { if (e.buttons || e.pressure) handle(e); }}
+        onPointerMove={(e) => { if (e.pressure > 0 || e.buttons > 0 || e.pointerType === "touch") handle(e); }}
         onPointerUp={reset}
         onPointerCancel={reset}
-        className="relative grid size-28 place-items-center rounded-full border border-border/60 bg-card/60"
-        style={{ touchAction: "none" }}
+        className="relative grid size-28 touch-none place-items-center rounded-full border border-border/60 bg-card/60"
         aria-label="Move"
       >
         <span
@@ -415,11 +342,11 @@ function Controls({ onMove, onKick }: { onMove: (v: Vec2) => void; onKick: (k: b
       </div>
       <button
         type="button"
-        onPointerDown={() => onKick(true)}
+        onPointerDown={(e) => { e.preventDefault(); onKick(true); }}
         onPointerUp={() => onKick(false)}
+        onPointerLeave={() => onKick(false)}
         onPointerCancel={() => onKick(false)}
-        className="grid size-20 place-items-center rounded-full border-2 border-gold/60 bg-gold/15 text-sm font-bold text-gold active:bg-gold/30"
-        style={{ touchAction: "none" }}
+        className="grid size-20 touch-none place-items-center rounded-full border-2 border-gold/60 bg-gold/15 text-sm font-bold text-gold active:bg-gold/30"
       >
         KICK
       </button>
