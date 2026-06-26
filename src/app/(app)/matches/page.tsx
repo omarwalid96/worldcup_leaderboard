@@ -9,6 +9,7 @@ import { LiveRefresher } from "@/components/match/live-refresher";
 import { requireProfile } from "@/lib/auth/session";
 import { getMatchesWithPredictions } from "@/lib/matches/queries";
 import { isPredictable } from "@/lib/time/usday";
+import { time } from "@/lib/perf/timing";
 
 export const metadata: Metadata = { title: "Matches" };
 
@@ -25,7 +26,9 @@ function EmptyState({ label }: { label: string }) {
 
 export default async function MatchesPage() {
   const profile = await requireProfile();
-  const all = await getMatchesWithPredictions(profile.id);
+  const all = await time("matches: all + predictions", () =>
+    getMatchesWithPredictions(profile.id),
+  );
 
   // "Open" = within the 24h pre-kickoff window; only these are predictable now.
   const open = all.filter((m) => isPredictable(m.kickoffUtc));

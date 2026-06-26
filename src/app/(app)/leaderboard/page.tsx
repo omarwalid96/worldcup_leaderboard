@@ -9,6 +9,7 @@ import {
   getMainLeaderboard,
   getUserLeagues,
 } from "@/lib/leaderboard/queries";
+import { time } from "@/lib/perf/timing";
 
 export const metadata: Metadata = { title: "Leaderboard" };
 
@@ -20,13 +21,18 @@ export default async function LeaderboardPage({
   const profile = await requireProfile();
   const { league: requestedId } = await searchParams;
 
-  const myLeagues = await getUserLeagues(profile.id);
+  // Fetch the user's leagues and the default leaderboard in parallel — they're
+  // independent. If a specific (allowed) league was requested we fetch that one
+  // after the membership check; the common no-param case needs no extra trip.
+  const [myLeagues, defaultData] = await Promise.all([
+    time("leaderboard: my leagues", () => getUserLeagues(profile.id)),
+    time("leaderboard: default standings", () => getMainLeaderboard()),
+  ]);
 
-  // Use the requested league only if the user is actually a member; else default.
   const allowed = requestedId && myLeagues.some((l) => l.id === requestedId);
   const data = allowed
-    ? await getLeaderboard(requestedId!)
-    : await getMainLeaderboard();
+    ? await time("leaderboard: requested standings", () => getLeaderboard(requestedId!))
+    : defaultData;
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">

@@ -12,19 +12,23 @@ import { getMainLeagueLeaders } from "@/lib/leaderboard/queries";
 import { listSponsors } from "@/lib/sponsors/actions";
 import { getLatestSummary } from "@/lib/summary/queries";
 import { getMyComment, listComments } from "@/lib/summary/comments-actions";
+import { time } from "@/lib/perf/timing";
 
 export const metadata: Metadata = { title: "Home" };
 
 export default async function DashboardPage() {
   const profile = await requireProfile();
   const [openNow, leaders, sponsors, summary] = await Promise.all([
-    getPredictableMatches(profile.id),
-    getMainLeagueLeaders(),
-    listSponsors(),
-    getLatestSummary(),
+    time("dashboard: predictable matches", () => getPredictableMatches(profile.id)),
+    time("dashboard: league leaders", () => getMainLeagueLeaders()),
+    time("dashboard: sponsors", () => listSponsors()),
+    time("dashboard: latest summary", () => getLatestSummary()),
   ]);
   const [comments, myComment] = summary
-    ? await Promise.all([listComments(summary.id), getMyComment(summary.id)])
+    ? await Promise.all([
+        time("dashboard: comments", () => listComments(summary.id)),
+        time("dashboard: my comment", () => getMyComment(summary.id)),
+      ])
     : [[], null];
 
   return (

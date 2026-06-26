@@ -9,17 +9,35 @@ import { LiveIsland } from "@/components/match/live-island";
 import { getTodaysTeamMatch } from "@/lib/matches/team-hype";
 import { getNextKickoff } from "@/lib/matches/queries";
 import { NativeInit } from "@/components/native-init";
+import { PerfOverlay } from "@/components/perf/perf-overlay";
+import { time, getTimings } from "@/lib/perf/timing";
+
+/**
+ * Renders AFTER {children}, so getTimings() includes the page's instrumented
+ * queries (the layout JSX is evaluated before children resolve, but this server
+ * component reads the request-scoped store once children have run). Admin only.
+ */
+async function PerfBar({ serverStartMs }: { serverStartMs: number }) {
+  const timings = getTimings();
+  return (
+    <PerfOverlay
+      serverTimings={timings}
+      serverTotalMs={Math.round((performance.now() - serverStartMs) * 10) / 10}
+    />
+  );
+}
 
 export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const profile = await requireProfile();
+  const serverStartMs = performance.now();
+  const profile = await time("layout: auth + profile", () => requireProfile());
   const [egyptMatch, brazilMatch, nextKickoff] = await Promise.all([
-    getTodaysTeamMatch("egypt"),
-    getTodaysTeamMatch("brazil"),
-    getNextKickoff(),
+    time("layout: egypt hype", () => getTodaysTeamMatch("egypt")),
+    time("layout: brazil hype", () => getTodaysTeamMatch("brazil")),
+    time("layout: next kickoff", () => getNextKickoff()),
   ]);
 
   return (
@@ -57,8 +75,13 @@ export default async function AppLayout({
           <SideNav />
         </aside>
 
-        {/* Page content; bottom padding leaves room for the mobile tab bar */}
-        <main className="min-w-0 flex-1 pb-24 md:pb-6">{children}</main>
+        {/* Page content; bottom padding leaves room for the mobile tab bar.
+            PerfBar (admin only) renders right after {children} so the page's
+            instrumented queries are recorded by the time it reads them. */}
+        <main className="min-w-0 flex-1 pb-24 md:pb-6">
+          {children}
+          {profile.isAdmin && <PerfBar serverStartMs={serverStartMs} />}
+        </main>
       </div>
 
       <BottomNav />
