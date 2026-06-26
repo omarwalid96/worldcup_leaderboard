@@ -1,5 +1,5 @@
 import "server-only";
-import { asc, gte, lt, eq, and, inArray, sql } from "drizzle-orm";
+import { asc, gte, lt, eq, ne, and, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { matches, predictions, type Match } from "@/db/schema";
 
@@ -111,6 +111,21 @@ export async function getTodayMatches(): Promise<Match[]> {
     .from(matches)
     .where(and(gte(matches.kickoffUtc, start), lt(matches.kickoffUtc, end)))
     .orderBy(asc(matches.kickoffUtc));
+}
+
+/**
+ * Kickoff time of the next not-yet-finished match (live OR upcoming), or null.
+ * Lets the live-island poll fast around kickoff and idle otherwise — instant
+ * "match started" detection without pinging ESPN round the clock.
+ */
+export async function getNextKickoff(): Promise<Date | null> {
+  const [m] = await db
+    .select({ kickoffUtc: matches.kickoffUtc })
+    .from(matches)
+    .where(ne(matches.status, "finished"))
+    .orderBy(asc(matches.kickoffUtc))
+    .limit(1);
+  return m?.kickoffUtc ?? null;
 }
 
 /**
