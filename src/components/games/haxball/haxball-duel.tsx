@@ -16,6 +16,9 @@ import {
   PLAYER_RADIUS,
   BALL_RADIUS,
   DT,
+  PLAYER_SPEED,
+  PLAYER_ACCEL_LERP,
+  PLAYER_DAMPING,
   type Snap,
 } from "@/lib/games/haxball/world";
 import { GOAL_CAP } from "@/lib/games/haxball/reducer";
@@ -26,10 +29,9 @@ const RENDER_DELAY_MS = 100;   // render BALL + OPPONENT this far in the past (s
 const JOY_DEADZONE = 0.18;     // ignore tiny thumb wobble near the joystick centre
 const RECONCILE = 0.18;        // pull my predicted paddle toward server truth each snapshot (0..1)
 
-// Must mirror world.ts drivePlayer() so prediction matches the server exactly.
-const PLAYER_SPEED = 11;
-const PLAYER_ACCEL_LERP = 0.35;
-const PLAYER_DAMP_PER_TICK = Math.exp(-6 * DT); // linearDamping=6 → per-tick factor
+// drivePlayer() constants come straight from world.ts (single source of truth)
+// so client prediction can never drift from the server sim.
+const PLAYER_DAMP_PER_TICK = Math.exp(-PLAYER_DAMPING * DT); // linearDamping → per-tick factor
 
 const CANVAS_W = 840;          // render resolution; 1 metre = CANVAS_W / FIELD_W px
 const CANVAS_H = CANVAS_W * (FIELD_H / FIELD_W);

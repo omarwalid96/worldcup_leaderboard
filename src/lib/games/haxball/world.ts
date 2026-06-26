@@ -37,15 +37,24 @@ export const PLAYER_RADIUS = 1.5;
 export const BALL_RADIUS = 1.0;
 
 // Tuning — these are the knobs that decide "feel".
-const PLAYER_SPEED = 11;        // m/s the paddle moves at full joystick (crisp top speed)
-const PLAYER_ACCEL_LERP = 0.35; // 0..1: how fast velocity reaches the target (snappy but not instant)
-const KICK_IMPULSE = 9;         // ball speed kick adds along aim
-const BALL_DAMPING = 0.4;       // linear damping: ball slows and stops in a few seconds
-const BALL_RESTITUTION = 0.55;  // bounciness off walls/players
-const PLAYER_DAMPING = 6;       // high damping so the paddle stops when you release (no drift)
+// PLAYER_SPEED / PLAYER_ACCEL_LERP / PLAYER_DAMPING are EXPORTED because the
+// client mirrors drivePlayer() for prediction — single source of truth, no drift.
+export const PLAYER_SPEED = 13;        // m/s the paddle moves at full joystick (crisp top speed)
+export const PLAYER_ACCEL_LERP = 0.45; // 0..1: how fast velocity reaches the target (snappier)
+export const PLAYER_DAMPING = 7;       // high damping so the paddle stops when you release (no drift)
+const KICK_IMPULSE = 16;        // ball speed kick adds along aim — fast, snappy shots
+const BALL_DAMPING = 0.25;      // lower damping → ball keeps its pace longer (faster feel)
+const BALL_RESTITUTION = 0.78;  // bouncy: lively rebounds off walls and players
 
-const VEL_ITERS = 8;            // Box2D solver iterations (fixed for determinism)
-const POS_ITERS = 3;
+// Player must massively out-mass the ball so a contact always shoves the ball
+// OUT cleanly instead of the disc sinking into / overlapping it. With POS_ITERS
+// high, Box2D fully resolves the overlap each tick → you collide, never overlay.
+const PLAYER_DENSITY = 20;
+const BALL_DENSITY = 1;
+const PLAYER_BALL_RESTITUTION = 0.45; // a running shoulder-barge still pops the ball
+
+const VEL_ITERS = 10;          // Box2D solver iterations (fixed for determinism)
+const POS_ITERS = 8;           // high → overlap is pushed out fully each tick (no sink-in)
 export const DT = 1 / 60;
 
 // ── Wire snapshot — compact, JSON/jsonb friendly, what the server broadcasts ──
@@ -139,8 +148,8 @@ function makePlayer(world: World, x: number, y: number): Body {
   const b = world.createDynamicBody({ position: new Vec2(x, y), linearDamping: PLAYER_DAMPING, fixedRotation: true });
   b.createFixture({
     shape: new Circle(PLAYER_RADIUS),
-    density: 2,            // heavier than the ball so the player shoves it
-    restitution: 0.2,
+    density: PLAYER_DENSITY,   // massively heavier than the ball → clean shove, no overlap
+    restitution: PLAYER_BALL_RESTITUTION,
     friction: 0,
     filterCategoryBits: CAT_PLAYER,
     filterMaskBits: CAT_WALL | CAT_BALL | CAT_GOALBAR | CAT_PLAYER,
@@ -149,10 +158,13 @@ function makePlayer(world: World, x: number, y: number): Body {
 }
 
 function makeBall(world: World): Body {
-  const b = world.createDynamicBody({ position: new Vec2(0, 0), linearDamping: BALL_DAMPING, fixedRotation: true });
+  // bullet=true → continuous collision: the fast ball can't tunnel into the
+  // player or sink past a wall in a single tick. This is what keeps "collide,
+  // never overlay" true even at high kick speeds.
+  const b = world.createDynamicBody({ position: new Vec2(0, 0), linearDamping: BALL_DAMPING, fixedRotation: true, bullet: true });
   b.createFixture({
     shape: new Circle(BALL_RADIUS),
-    density: 1,
+    density: BALL_DENSITY,
     restitution: BALL_RESTITUTION,
     friction: 0,
     filterCategoryBits: CAT_BALL,
