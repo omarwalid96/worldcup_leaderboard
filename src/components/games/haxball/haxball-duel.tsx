@@ -10,9 +10,15 @@ import type { GameComponentProps } from "@/lib/games/types";
 import {
   FIELD_W,
   FIELD_H,
+  HALF_W,
+  HALF_H,
   GOAL_HALF,
   PLAYER_RADIUS,
+  PLAYER_ACCELERATION,
+  PLAYER_KICK_ACCEL,
+  PLAYER_DAMPING,
   BALL_RADIUS,
+  TICK_MS,
   type HaxState,
   type Vec2,
 } from "@/lib/games/haxball/physics";
@@ -20,20 +26,23 @@ import { GOAL_CAP } from "@/lib/games/haxball/reducer";
 
 const SERVER_URL = process.env.NEXT_PUBLIC_HAXBALL_WS; // wss://haxball-eznii.fly.dev
 const INPUT_HZ_MS = 33;        // send input ~30Hz (server runs its own 60Hz sim regardless)
-const RENDER_DELAY_MS = 100;   // render this far in the past so we always interpolate between two real snapshots
+const RENDER_DELAY_MS = 100;   // render the BALL + OPPONENT this far in the past (smooth interpolation)
 const JOY_DEADZONE = 0.18;     // ignore tiny thumb wobble near the joystick centre
+const RECONCILE = 0.12;        // how hard each snapshot pulls my predicted paddle toward server truth (0..1)
 
 /**
  * Real-time 1v1 HaxBall. A dedicated WS server (server/haxball) runs the ONE
  * authoritative 60Hz physics sim; this client only sends input and renders the
  * snapshots it pushes.
  *
- * Netcode: pure snapshot interpolation, no client-side prediction. We buffer
- * incoming snapshots and render `RENDER_DELAY_MS` in the past, lerping between
- * the two snapshots that straddle that render time. Everything — your paddle,
- * the opponent, the ball — comes from the same server clock, so nothing
- * rubber-bands. Tradeoff: your own input shows the round-trip latency; that's
- * the standard, jitter-free HaxBall-clone model and is fine on normal pings.
+ * Netcode: predict-self + interpolate-rest.
+ *  - MY paddle is integrated locally every frame from my own joystick, so it
+ *    tracks my thumb with zero latency. Each server snapshot softly reconciles
+ *    it toward the authoritative position (RECONCILE) so collisions don't drift.
+ *  - The BALL and OPPONENT are rendered RENDER_DELAY_MS in the past, lerped
+ *    between two real snapshots — so they never rubber-band.
+ * We deliberately do NOT predict the ball (it depends on the opponent we can't
+ * see); predicting it was the old rubber-band bug.
  */
 export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameComponentProps) {
   const { match, setMatch } = useGameRoom(matchId, initialMatch, currentUserId);
@@ -56,8 +65,10 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
   const inputRef = useRef<Vec2 & { kick: boolean }>({ x: 0, y: 0, kick: false });
   // Snapshot buffer for render interpolation: { at, s } sorted by arrival.
   const buffer = useRef<{ at: number; s: HaxState }[]>([]);
-  // Clock offset: client perf-clock time that maps to "now" on the server stream.
-  // We render at (latest packet arrival) - RENDER_DELAY_MS.
+  // My locally-predicted paddle (pos+vel), integrated from my own input each
+  // frame and softly corrected toward server truth on each snapshot.
+  const myPaddle = useRef<{ pos: Vec2; vel: Vec2 }>({ pos: { x: 0, y: 0 }, vel: { x: 0, y: 0 } });
+  const myPaddleInit = useRef(false);
   const finishedRef = useRef(false);
 
   // ── Connect: send input, fill the snapshot buffer ──────────────────────────
@@ -83,6 +94,24 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
       // Keep ~1s of history; drop the rest.
       if (buf.length > 64) buf.shift();
       if (s.scoreA !== hud.a || s.scoreB !== hud.b) setHud({ a: s.scoreA, b: s.scoreB });
+
+      // Reconcile my predicted paddle toward the server's authoritative position
+      // for my slot. First snapshot (or after a goal reset) snaps hard; otherwise
+      // pull gently so collisions/kickoffs converge without a visible jolt.
+      const mine = s.players[isP1 ? 0 : 1];
+      if (mine) {
+        const mp = myPaddle.current;
+        if (!myPaddleInit.current || s.goalEvent != null) {
+          mp.pos = { ...mine.pos };
+          mp.vel = { ...mine.vel };
+          myPaddleInit.current = true;
+        } else {
+          mp.pos.x += (mine.pos.x - mp.pos.x) * RECONCILE;
+          mp.pos.y += (mine.pos.y - mp.pos.y) * RECONCILE;
+          // Trust the server's velocity (it knows about collisions we don't predict).
+          mp.vel = { ...mine.vel };
+        }
+      }
 
       // Either client commits the finished result once (idempotent server-side).
       if (!finishedRef.current && (s.scoreA >= GOAL_CAP || s.scoreB >= GOAL_CAP)) {
@@ -118,17 +147,40 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
     const ctx = canvas?.getContext("2d");
     if (!ctx) return;
     let raf = 0;
+    let lastTime = performance.now();
+    let acc = 0;
+    const myIdx = isP1 ? 0 : 1;
 
     const frame = () => {
       raf = requestAnimationFrame(frame);
       const buf = buffer.current;
       if (buf.length === 0) return;
 
-      // Render RENDER_DELAY_MS behind the newest packet so we sit between two
-      // real snapshots and never extrapolate into the unknown.
-      const renderAt = buf[buf.length - 1].at - RENDER_DELAY_MS;
+      // ── Integrate MY paddle locally at a fixed 60Hz step (matches physics.ts
+      //    so prediction lines up with the server). Zero-latency thumb tracking. ──
+      const now = performance.now();
+      let dt = now - lastTime;
+      lastTime = now;
+      if (dt > 250) dt = 250; // clamp after a tab stall
+      acc += dt;
+      const mp = myPaddle.current;
+      const i = inputRef.current;
+      while (acc >= TICK_MS) {
+        const accel = i.kick ? PLAYER_KICK_ACCEL : PLAYER_ACCELERATION;
+        // joystick is already deadzoned + clamped to magnitude ≤1 in Controls
+        mp.vel.x = (mp.vel.x + i.x * accel) * PLAYER_DAMPING;
+        mp.vel.y = (mp.vel.y + i.y * accel) * PLAYER_DAMPING;
+        mp.pos.x += mp.vel.x;
+        mp.pos.y += mp.vel.y;
+        acc -= TICK_MS;
+      }
+      // Keep my paddle on the pitch (cheap clamp; server is authoritative on walls).
+      const lim = (v: number, h: number) => Math.max(-h + PLAYER_RADIUS, Math.min(h - PLAYER_RADIUS, v));
+      mp.pos.x = lim(mp.pos.x, HALF_W);
+      mp.pos.y = lim(mp.pos.y, HALF_H);
 
-      // Find the pair (a,b) straddling renderAt.
+      // ── Render BALL + OPPONENT from the interpolated past ──────────────────
+      const renderAt = buf[buf.length - 1].at - RENDER_DELAY_MS;
       let a = buf[0], b = buf[buf.length - 1];
       for (let k = 0; k < buf.length - 1; k++) {
         if (buf[k].at <= renderAt && buf[k + 1].at >= renderAt) {
@@ -139,14 +191,19 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
       }
       const span = b.at - a.at;
       const t = span > 0 ? Math.max(0, Math.min(1, (renderAt - a.at) / span)) : 1;
-      // A goal resets positions discontinuously; don't lerp across that.
       const snap = b.s.goalEvent != null ? b.s : lerpState(a.s, b.s, t);
-      draw(ctx, snap);
+
+      // Overlay my locally-predicted paddle on top of the interpolated snapshot,
+      // and reflect my live kick state for the ring highlight.
+      const players = snap.players.map((p, idx) =>
+        idx === myIdx ? { ...p, pos: { ...mp.pos }, kicking: i.kick } : p,
+      );
+      draw(ctx, { ...snap, players });
     };
 
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [playable]);
+  }, [playable, isP1]);
 
   function respond(accept: boolean) {
     if (isPending) return;
