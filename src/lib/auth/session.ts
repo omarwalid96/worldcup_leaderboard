@@ -4,20 +4,25 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles, type Profile } from "@/db/schema";
-import { getCurrentUser } from "@/lib/supabase/server";
+import { getCurrentUserId } from "@/lib/supabase/server";
 
 /**
  * Returns the current user's profile row, or null if signed out / no profile.
  * Cached per-request so multiple components don't re-query.
+ *
+ * Uses getCurrentUserId() (local JWT verification, no Auth round-trip) — the
+ * middleware already does the authoritative network getUser() on every request,
+ * so re-validating here just added latency to every page nav. This is a READ
+ * path; mutations still call the strict getCurrentUser().
  */
 export const getSessionProfile = cache(async (): Promise<Profile | null> => {
-  const user = await getCurrentUser();
-  if (!user) return null;
+  const userId = await getCurrentUserId();
+  if (!userId) return null;
 
   const [profile] = await db
     .select()
     .from(profiles)
-    .where(eq(profiles.id, user.id))
+    .where(eq(profiles.id, userId))
     .limit(1);
 
   return profile ?? null;

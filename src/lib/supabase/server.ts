@@ -46,6 +46,11 @@ export function createSupabaseAdminClient() {
 }
 
 /** Returns the authenticated user (verified against Supabase) or null. */
+/**
+ * Authoritative current user — calls Supabase Auth to validate the token over
+ * the network. Use this in MUTATIONS (server actions) where we must not trust a
+ * possibly-tampered cookie before writing.
+ */
 export async function getCurrentUser() {
   if (!env.supabaseUrl || !env.supabaseAnonKey) return null;
   const supabase = await createSupabaseServerClient();
@@ -53,4 +58,19 @@ export async function getCurrentUser() {
     data: { user },
   } = await supabase.auth.getUser();
   return user;
+}
+
+/**
+ * Fast current-user id for READ paths (page render). Verifies the session JWT
+ * LOCALLY via getClaims() (signature-checked against cached JWKS — no Auth
+ * round-trip in the common case), so every page nav doesn't pay a second
+ * network call on top of the one the middleware already made this request.
+ * Reads only — never use before a write; mutations use getCurrentUser().
+ */
+export async function getCurrentUserId(): Promise<string | null> {
+  if (!env.supabaseUrl || !env.supabaseAnonKey) return null;
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.auth.getClaims();
+  if (error || !data?.claims?.sub) return null;
+  return data.claims.sub;
 }
