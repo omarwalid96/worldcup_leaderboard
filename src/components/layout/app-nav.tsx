@@ -22,10 +22,13 @@ function isActive(pathname: string, href: string) {
 /**
  * Poll the pending-incoming-challenge count so a badge on the Games tab shows
  * invites instantly without opening the tab. Cheap COUNT query; polls on mount,
- * every 20s, on tab focus, and on route change. Shared by both nav variants.
+ * every 20s, and on tab focus. Shared by both nav variants.
+ *
+ * Deps are []: the nav is mounted once in the app layout and persists across
+ * navigations, so the poll keeps running — no need to restart it on every route
+ * change (that fired a server action on EVERY tab switch, adding nav latency).
  */
 function useInvites() {
-  const pathname = usePathname();
   const [count, setCount] = useState(0);
   useEffect(() => {
     let alive = true;
@@ -44,7 +47,7 @@ function useInvites() {
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [pathname]);
+  }, []);
   return count;
 }
 

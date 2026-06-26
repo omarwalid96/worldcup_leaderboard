@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { isAuthorizedCron } from "@/lib/cron/auth";
 import { runPipeline } from "@/lib/cron/pipeline";
+import { LIVE_TAG } from "@/lib/cache/tags";
 
 // Always run dynamically on the server; never cache.
 export const dynamic = "force-dynamic";
@@ -17,6 +19,17 @@ async function handle(req: NextRequest) {
   }
   try {
     const result = await runPipeline();
+    // Bust the cached live-dependent reads (next kickoff, team-hype banners) the
+    // instant something actually changed — a score, a status flip, a match going
+    // live, or a grade. Quiet ticks (nothing changed) skip it, so the cache
+    // survives between real updates. This is what keeps cached pages from ever
+    // showing stale live results.
+    const changed =
+      result.sync.scoresUpdated > 0 ||
+      result.sync.statusChanges > 0 ||
+      result.markedLive > 0 ||
+      result.grading.gradedPredictions > 0;
+    if (changed) revalidateTag(LIVE_TAG);
     return NextResponse.json(result);
   } catch (err) {
     console.error("[cron/sync] pipeline failed:", err);

@@ -1,7 +1,9 @@
 import "server-only";
+import { unstable_cache } from "next/cache";
 import { asc, gte, lt, eq, ne, and, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { matches, predictions, type Match } from "@/db/schema";
+import { LIVE_TAG } from "@/lib/cache/tags";
 
 export interface MatchWithPrediction extends Match {
   prediction: {
@@ -117,15 +119,31 @@ export async function getTodayMatches(): Promise<Match[]> {
  * Kickoff time of the next not-yet-finished match (live OR upcoming), or null.
  * Lets the live-island poll fast around kickoff and idle otherwise — instant
  * "match started" detection without pinging ESPN round the clock.
+ *
+ * Cached (60s) and tagged LIVE_TAG: this runs in the app layout on EVERY page
+ * nav, so caching removes one remote-DB round-trip per tab switch. The cron
+ * busts LIVE_TAG the moment a status changes, so a match flipping live/finished
+ * is reflected immediately; the 60s TTL only bounds staleness when the cron is
+ * idle (no live changes), where a stale kickoff time is harmless. Returns ISO
+ * string (Date isn't serializable through the cache) — callers parse it.
  */
+const cachedNextKickoffIso = unstable_cache(
+  async (): Promise<string | null> => {
+    const [m] = await db
+      .select({ kickoffUtc: matches.kickoffUtc })
+      .from(matches)
+      .where(ne(matches.status, "finished"))
+      .orderBy(asc(matches.kickoffUtc))
+      .limit(1);
+    return m?.kickoffUtc?.toISOString() ?? null;
+  },
+  ["next-kickoff"],
+  { revalidate: 60, tags: [LIVE_TAG] },
+);
+
 export async function getNextKickoff(): Promise<Date | null> {
-  const [m] = await db
-    .select({ kickoffUtc: matches.kickoffUtc })
-    .from(matches)
-    .where(ne(matches.status, "finished"))
-    .orderBy(asc(matches.kickoffUtc))
-    .limit(1);
-  return m?.kickoffUtc ?? null;
+  const iso = await cachedNextKickoffIso();
+  return iso ? new Date(iso) : null;
 }
 
 /**
