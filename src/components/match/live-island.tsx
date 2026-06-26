@@ -24,33 +24,56 @@ interface Live {
   matchId: string | null;
 }
 
-export function LiveIsland() {
+export function LiveIsland({
+  nextKickoffMs,
+}: {
+  /** Kickoff (epoch ms) of the next non-finished match, or null. */
+  nextKickoffMs: number | null;
+}) {
   const pathname = usePathname();
   const [matches, setMatches] = useState<Live[]>([]);
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     let alive = true;
+    let timer: ReturnType<typeof setTimeout>;
+    // Fast (20s) whenever a match is in play OR kickoff is imminent — so the
+    // island appears the instant a match starts and gives snappy live feedback.
+    // Slow (5min) only when the next match is still far off, so we're not
+    // pinging ESPN round-the-clock off-matchday. A live result or an approaching
+    // kickoff pulls the cadence back to 20s on the next tick.
+    const LIVE_MS = 20_000;
+    const IDLE_MS = 300_000;
+    // Go fast from 5 min before kickoff; once past it, the live check takes over.
+    const kickoffNear = () =>
+      nextKickoffMs != null && Date.now() >= nextKickoffMs - 300_000;
     const poll = async () => {
-      if (document.visibilityState !== "visible") return;
+      if (document.visibilityState !== "visible") {
+        timer = setTimeout(poll, LIVE_MS); // re-check soon once tab is back
+        return;
+      }
+      let live = false;
       try {
         const res = await fetch(`/api/live?t=${Math.floor(Date.now() / 15_000)}`, {
           cache: "no-store",
         });
         const data: { matches?: Live[] } = await res.json();
         // Only truly in-play matches (drop ESPN's just-completed entries).
-        if (alive) setMatches((data.matches ?? []).filter((m) => !m.completed));
+        const inPlay = (data.matches ?? []).filter((m) => !m.completed);
+        live = inPlay.length > 0;
+        if (alive) setMatches(inPlay);
       } catch {
         /* fail soft */
       }
+      if (alive)
+        timer = setTimeout(poll, live || kickoffNear() ? LIVE_MS : IDLE_MS);
     };
     poll();
-    const id = setInterval(poll, 20_000);
     return () => {
       alive = false;
-      clearInterval(id);
+      clearTimeout(timer);
     };
-  }, []);
+  }, [nextKickoffMs]);
 
   // Don't double up with the per-match overlay on a match detail page.
   const onMatchPage = pathname?.startsWith("/matches/");

@@ -145,12 +145,16 @@ export function LeaderboardTable({
                 exit={{ opacity: 0 }}
                 transition={{ type: "spring", stiffness: 500, damping: 40 }}
                 className={cn(
-                  "flex items-center gap-3 rounded-xl border px-3 py-2.5 backdrop-blur transition-colors",
+                  // No backdrop-blur: rows sit on the opaque pitch bg, so the
+                  // blur cost (re-rasterized every frame during the re-rank
+                  // layout animation) bought no visible effect. Opaque bg keeps
+                  // the look. ponytail: blur is for glass-over-content, not lists.
+                  "flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors",
                   isMe
                     ? "border-gold/50 bg-gold/10 ring-1 ring-gold/30"
                     : isPodium
-                      ? "border-border/60 bg-card/80"
-                      : "border-border/50 bg-card/50",
+                      ? "border-border/60 bg-card"
+                      : "border-border/50 bg-card",
                 )}
               >
                 <RankBadge rank={rank} />

@@ -218,7 +218,7 @@ export function MatchCard({
   );
 
   const baseClass = cn(
-    "group relative block rounded-2xl border bg-card/70 p-4 backdrop-blur transition-colors",
+    "group relative block rounded-2xl border bg-card p-4 transition-colors",
     tappable && "hover:border-gold/50",
     linkable && !tappable && "hover:border-border",
     isLive && "border-live/40",

@@ -7,6 +7,7 @@ import { SwRegister } from "@/components/sw-register";
 import { TeamHype } from "@/components/match/team-hype";
 import { LiveIsland } from "@/components/match/live-island";
 import { getTodaysTeamMatch } from "@/lib/matches/team-hype";
+import { getNextKickoff } from "@/lib/matches/queries";
 import { NativeInit } from "@/components/native-init";
 
 export default async function AppLayout({
@@ -15,9 +16,10 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const profile = await requireProfile();
-  const [egyptMatch, brazilMatch] = await Promise.all([
+  const [egyptMatch, brazilMatch, nextKickoff] = await Promise.all([
     getTodaysTeamMatch("egypt"),
     getTodaysTeamMatch("brazil"),
+    getNextKickoff(),
   ]);
 
   return (
@@ -43,7 +45,7 @@ export default async function AppLayout({
 
       {/* Google-Sports-style live pill — auto-shows under the bar when a match
           is in play, hidden otherwise. Self-contained client component. */}
-      <LiveIsland />
+      <LiveIsland nextKickoffMs={nextKickoff ? nextKickoff.getTime() : null} />
 
       {/* Match-day hype — only renders on the day of that country's game. */}
       {egyptMatch && <TeamHype match={egyptMatch} />}
