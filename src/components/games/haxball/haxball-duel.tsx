@@ -14,35 +14,39 @@ import {
   HALF_H,
   GOAL_HALF,
   PLAYER_RADIUS,
-  PLAYER_ACCELERATION,
-  PLAYER_KICK_ACCEL,
-  PLAYER_DAMPING,
   BALL_RADIUS,
-  TICK_MS,
-  type HaxState,
-  type Vec2,
-} from "@/lib/games/haxball/physics";
+  DT,
+  type Snap,
+} from "@/lib/games/haxball/world";
 import { GOAL_CAP } from "@/lib/games/haxball/reducer";
 
 const SERVER_URL = process.env.NEXT_PUBLIC_HAXBALL_WS; // wss://haxball-eznii.fly.dev
-const INPUT_HZ_MS = 33;        // send input ~30Hz (server runs its own 60Hz sim regardless)
-const RENDER_DELAY_MS = 100;   // render the BALL + OPPONENT this far in the past (smooth interpolation)
+const INPUT_HZ_MS = 33;        // send input ~30Hz (server runs its own 60Hz planck sim)
+const RENDER_DELAY_MS = 100;   // render BALL + OPPONENT this far in the past (smooth interpolation)
 const JOY_DEADZONE = 0.18;     // ignore tiny thumb wobble near the joystick centre
-const RECONCILE = 0.12;        // how hard each snapshot pulls my predicted paddle toward server truth (0..1)
+const RECONCILE = 0.18;        // pull my predicted paddle toward server truth each snapshot (0..1)
+
+// Must mirror world.ts drivePlayer() so prediction matches the server exactly.
+const PLAYER_SPEED = 11;
+const PLAYER_ACCEL_LERP = 0.35;
+const PLAYER_DAMP_PER_TICK = Math.exp(-6 * DT); // linearDamping=6 → per-tick factor
+
+const CANVAS_W = 840;          // render resolution; 1 metre = CANVAS_W / FIELD_W px
+const CANVAS_H = CANVAS_W * (FIELD_H / FIELD_W);
+
+interface XY { x: number; y: number }
 
 /**
- * Real-time 1v1 HaxBall. A dedicated WS server (server/haxball) runs the ONE
- * authoritative 60Hz physics sim; this client only sends input and renders the
- * snapshots it pushes.
+ * Real-time 1v1 HaxBall on a planck.js (Box2D) authoritative server.
+ * The server runs the ONE 60Hz physics sim and broadcasts compact snapshots;
+ * this client sends input and renders.
  *
  * Netcode: predict-self + interpolate-rest.
- *  - MY paddle is integrated locally every frame from my own joystick, so it
- *    tracks my thumb with zero latency. Each server snapshot softly reconciles
- *    it toward the authoritative position (RECONCILE) so collisions don't drift.
- *  - The BALL and OPPONENT are rendered RENDER_DELAY_MS in the past, lerped
- *    between two real snapshots — so they never rubber-band.
- * We deliberately do NOT predict the ball (it depends on the opponent we can't
- * see); predicting it was the old rubber-band bug.
+ *  - MY paddle is integrated locally each tick with the exact drivePlayer model
+ *    from world.ts, so it tracks my thumb with zero latency; each snapshot
+ *    softly reconciles it (RECONCILE) so contacts don't drift.
+ *  - BALL + OPPONENT render RENDER_DELAY_MS in the past, lerped between two real
+ *    snapshots — real momentum, no rubber-band.
  */
 export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameComponentProps) {
   const { match, setMatch } = useGameRoom(matchId, initialMatch, currentUserId);
@@ -51,7 +55,7 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
   const [connected, setConnected] = useState(false);
   const [hud, setHud] = useState({ a: 0, b: 0 });
 
-  const isP1 = match.player1Id === currentUserId; // p1 = team A (red)
+  const isP1 = match.player1Id === currentUserId; // p1 = team A (red) = slot p0
   const isInvitee = match.player2Id === currentUserId;
   const pending = match.status === "pending";
   const declined = match.status === "declined";
@@ -62,13 +66,12 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
-  const inputRef = useRef<Vec2 & { kick: boolean }>({ x: 0, y: 0, kick: false });
-  // Snapshot buffer for render interpolation: { at, s } sorted by arrival.
-  const buffer = useRef<{ at: number; s: HaxState }[]>([]);
-  // My locally-predicted paddle (pos+vel), integrated from my own input each
-  // frame and softly corrected toward server truth on each snapshot.
-  const myPaddle = useRef<{ pos: Vec2; vel: Vec2 }>({ pos: { x: 0, y: 0 }, vel: { x: 0, y: 0 } });
-  const myPaddleInit = useRef(false);
+  const inputRef = useRef<{ x: number; y: number; kick: boolean }>({ x: 0, y: 0, kick: false });
+  // Snapshot buffer for render interpolation.
+  const buffer = useRef<{ at: number; s: Snap }[]>([]);
+  // My locally-predicted paddle (metres), integrated from my own input.
+  const myPaddle = useRef<{ pos: XY; vel: XY }>({ pos: { x: 0, y: 0 }, vel: { x: 0, y: 0 } });
+  const myInit = useRef(false);
   const finishedRef = useRef(false);
 
   // ── Connect: send input, fill the snapshot buffer ──────────────────────────
@@ -85,35 +88,29 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
     ws.onclose = () => setConnected(false);
     ws.onerror = () => setConnected(false);
     ws.onmessage = (ev) => {
-      let m: { t: string; s?: HaxState };
+      let m: { t: string; s?: Snap };
       try { m = JSON.parse(ev.data); } catch { return; }
       if (m.t !== "state" || !m.s) return;
       const s = m.s;
       const buf = buffer.current;
       buf.push({ at: performance.now(), s });
-      // Keep ~1s of history; drop the rest.
       if (buf.length > 64) buf.shift();
       if (s.scoreA !== hud.a || s.scoreB !== hud.b) setHud({ a: s.scoreA, b: s.scoreB });
 
-      // Reconcile my predicted paddle toward the server's authoritative position
-      // for my slot. First snapshot (or after a goal reset) snaps hard; otherwise
-      // pull gently so collisions/kickoffs converge without a visible jolt.
-      const mine = s.players[isP1 ? 0 : 1];
-      if (mine) {
-        const mp = myPaddle.current;
-        if (!myPaddleInit.current || s.goalEvent != null) {
-          mp.pos = { ...mine.pos };
-          mp.vel = { ...mine.vel };
-          myPaddleInit.current = true;
-        } else {
-          mp.pos.x += (mine.pos.x - mp.pos.x) * RECONCILE;
-          mp.pos.y += (mine.pos.y - mp.pos.y) * RECONCILE;
-          // Trust the server's velocity (it knows about collisions we don't predict).
-          mp.vel = { ...mine.vel };
-        }
+      // Reconcile my predicted paddle toward server truth for my slot.
+      const mine = isP1 ? s.pa : s.pb;
+      const mineV = isP1 ? s.va : s.vb;
+      const mp = myPaddle.current;
+      if (!myInit.current || s.goal != null) {
+        mp.pos = { x: mine[0], y: mine[1] };
+        mp.vel = { x: mineV[0], y: mineV[1] };
+        myInit.current = true;
+      } else {
+        mp.pos.x += (mine[0] - mp.pos.x) * RECONCILE;
+        mp.pos.y += (mine[1] - mp.pos.y) * RECONCILE;
+        mp.vel = { x: mineV[0], y: mineV[1] };
       }
 
-      // Either client commits the finished result once (idempotent server-side).
       if (!finishedRef.current && (s.scoreA >= GOAL_CAP || s.scoreB >= GOAL_CAP)) {
         finishedRef.current = true;
         startTransition(async () => {
@@ -124,11 +121,10 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
     };
 
     return () => { ws.close(); };
-    // hud read via closure; matchId/currentUserId/playable are the real deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playable, matchId, currentUserId]);
+  }, [playable, matchId, currentUserId, isP1]);
 
-  // ── Send input at a fixed cadence (decoupled from render) ──────────────────
+  // ── Send input at a fixed cadence ──────────────────────────────────────────
   useEffect(() => {
     if (!playable) return;
     const id = setInterval(() => {
@@ -140,7 +136,7 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
     return () => clearInterval(id);
   }, [playable]);
 
-  // ── Render loop: draw the interpolated past ────────────────────────────────
+  // ── Render loop ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!playable) return;
     const canvas = canvasRef.current;
@@ -149,56 +145,59 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
     let raf = 0;
     let lastTime = performance.now();
     let acc = 0;
-    const myIdx = isP1 ? 0 : 1;
 
     const frame = () => {
       raf = requestAnimationFrame(frame);
       const buf = buffer.current;
-      if (buf.length === 0) return;
 
-      // ── Integrate MY paddle locally at a fixed 60Hz step (matches physics.ts
-      //    so prediction lines up with the server). Zero-latency thumb tracking. ──
+      // Integrate MY paddle at a fixed 60Hz step (matches world.ts drivePlayer).
       const now = performance.now();
       let dt = now - lastTime;
       lastTime = now;
-      if (dt > 250) dt = 250; // clamp after a tab stall
+      if (dt > 250) dt = 250;
       acc += dt;
       const mp = myPaddle.current;
       const i = inputRef.current;
+      const TICK_MS = DT * 1000;
       while (acc >= TICK_MS) {
-        const accel = i.kick ? PLAYER_KICK_ACCEL : PLAYER_ACCELERATION;
-        // joystick is already deadzoned + clamped to magnitude ≤1 in Controls
-        mp.vel.x = (mp.vel.x + i.x * accel) * PLAYER_DAMPING;
-        mp.vel.y = (mp.vel.y + i.y * accel) * PLAYER_DAMPING;
-        mp.pos.x += mp.vel.x;
-        mp.pos.y += mp.vel.y;
+        const mag = Math.hypot(i.x, i.y);
+        const tx = mag > 0.01 ? (i.x / Math.max(mag, 1)) * PLAYER_SPEED : 0;
+        const ty = mag > 0.01 ? (i.y / Math.max(mag, 1)) * PLAYER_SPEED : 0;
+        // velocity-lerp toward target, then damping, then integrate (metres)
+        mp.vel.x = (mp.vel.x + (tx - mp.vel.x) * PLAYER_ACCEL_LERP) * PLAYER_DAMP_PER_TICK;
+        mp.vel.y = (mp.vel.y + (ty - mp.vel.y) * PLAYER_ACCEL_LERP) * PLAYER_DAMP_PER_TICK;
+        mp.pos.x += mp.vel.x * DT;
+        mp.pos.y += mp.vel.y * DT;
         acc -= TICK_MS;
       }
-      // Keep my paddle on the pitch (cheap clamp; server is authoritative on walls).
-      const lim = (v: number, h: number) => Math.max(-h + PLAYER_RADIUS, Math.min(h - PLAYER_RADIUS, v));
-      mp.pos.x = lim(mp.pos.x, HALF_W);
-      mp.pos.y = lim(mp.pos.y, HALF_H);
+      // Clamp to pitch (server is authoritative on real walls).
+      mp.pos.x = clamp(mp.pos.x, -HALF_W + PLAYER_RADIUS, HALF_W - PLAYER_RADIUS);
+      mp.pos.y = clamp(mp.pos.y, -HALF_H + PLAYER_RADIUS, HALF_H - PLAYER_RADIUS);
 
-      // ── Render BALL + OPPONENT from the interpolated past ──────────────────
+      // Interpolate ball + opponent RENDER_DELAY_MS in the past.
+      if (buf.length === 0) { return; }
       const renderAt = buf[buf.length - 1].at - RENDER_DELAY_MS;
       let a = buf[0], b = buf[buf.length - 1];
       for (let k = 0; k < buf.length - 1; k++) {
-        if (buf[k].at <= renderAt && buf[k + 1].at >= renderAt) {
-          a = buf[k];
-          b = buf[k + 1];
-          break;
-        }
+        if (buf[k].at <= renderAt && buf[k + 1].at >= renderAt) { a = buf[k]; b = buf[k + 1]; break; }
       }
       const span = b.at - a.at;
-      const t = span > 0 ? Math.max(0, Math.min(1, (renderAt - a.at) / span)) : 1;
-      const snap = b.s.goalEvent != null ? b.s : lerpState(a.s, b.s, t);
+      const t = span > 0 ? clamp((renderAt - a.at) / span, 0, 1) : 1;
+      const goalNow = b.s.goal != null;
 
-      // Overlay my locally-predicted paddle on top of the interpolated snapshot,
-      // and reflect my live kick state for the ring highlight.
-      const players = snap.players.map((p, idx) =>
-        idx === myIdx ? { ...p, pos: { ...mp.pos }, kicking: i.kick } : p,
-      );
-      draw(ctx, { ...snap, players });
+      // Opponent + ball positions (interpolated); my paddle = predicted.
+      const oppA = isP1 ? a.s.pb : a.s.pa;
+      const oppB = isP1 ? b.s.pb : b.s.pa;
+      const oppKick = isP1 ? b.s.kb : b.s.ka;
+      const oppPos = goalNow ? xy(oppB) : lerpXY(xy(oppA), xy(oppB), t);
+      const ballPos = goalNow ? xy(b.s.ball) : lerpXY(xy(a.s.ball), xy(b.s.ball), t);
+      const myKick = i.kick;
+
+      draw(ctx, {
+        mine: { pos: { ...mp.pos }, color: isP1 ? "#e2483d" : "#3d6de2", kick: myKick },
+        opp: { pos: oppPos, color: isP1 ? "#3d6de2" : "#e2483d", kick: oppKick },
+        ball: ballPos,
+      });
     };
 
     raf = requestAnimationFrame(frame);
@@ -263,7 +262,6 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
     );
   }
 
-  // Live match. P1 = team A = red, P2 = team B = blue.
   const myScore = isP1 ? hud.a : hud.b;
   const oppScore = isP1 ? hud.b : hud.a;
   const myColor = isP1 ? "#e2483d" : "#3d6de2";
@@ -286,8 +284,8 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
 
       <canvas
         ref={canvasRef}
-        width={FIELD_W * 2}
-        height={FIELD_H * 2}
+        width={CANVAS_W}
+        height={CANVAS_H}
         className="w-full max-w-md rounded-xl border border-border/60"
         style={{ aspectRatio: `${FIELD_W} / ${FIELD_H}`, touchAction: "none" }}
       />
@@ -300,59 +298,61 @@ export function HaxballDuel({ matchId, initialMatch, currentUserId }: GameCompon
   );
 }
 
-/** Lerp positions between two snapshots (vel/scores from `b`). */
-function lerpVec(a: Vec2, b: Vec2, t: number): Vec2 {
-  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
-}
-function lerpState(a: HaxState, b: HaxState, t: number): HaxState {
-  return {
-    ...b,
-    ball: { ...b.ball, pos: lerpVec(a.ball.pos, b.ball.pos, t) },
-    players: b.players.map((pb, i) => ({
-      ...pb,
-      pos: lerpVec(a.players[i]?.pos ?? pb.pos, pb.pos, t),
-    })),
-  };
-}
+function clamp(v: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, v)); }
+function xy(p: [number, number]): XY { return { x: p[0], y: p[1] }; }
+function lerpXY(a: XY, b: XY, t: number): XY { return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }; }
 
-/** Draw the pitch + discs. Both players see the same orientation. */
-function draw(ctx: CanvasRenderingContext2D, s: HaxState) {
+interface DrawDisc { pos: XY; color: string; kick: boolean }
+/** Draw the pitch + discs (metres → pixels). Ball is drawn LAST = always on top. */
+function draw(
+  ctx: CanvasRenderingContext2D,
+  s: { mine: DrawDisc; opp: DrawDisc; ball: XY },
+) {
   const W = ctx.canvas.width, H = ctx.canvas.height;
-  const sx = W / FIELD_W;
-  const tx = (x: number) => (x + FIELD_W / 2) * sx;
-  const ty = (y: number) => (y + FIELD_H / 2) * (H / FIELD_H);
+  const sx = W / FIELD_W, sy = H / FIELD_H;
+  const tx = (x: number) => (x + HALF_W) * sx;
+  const ty = (y: number) => (y + HALF_H) * sy;
 
+  // Pitch
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = "#0a3d12";
   ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = "rgba(255,255,255,0.25)";
+  ctx.strokeStyle = "rgba(255,255,255,0.22)";
   ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.stroke();
-  ctx.beginPath(); ctx.arc(W / 2, H / 2, 40 * sx, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(W / 2, H / 2, 4 * sx, 0, Math.PI * 2); ctx.stroke();
+  // Goals
   ctx.strokeStyle = "#F2D27A";
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 5;
   for (const gx of [0, W]) {
     ctx.beginPath();
     ctx.moveTo(gx, ty(-GOAL_HALF)); ctx.lineTo(gx, ty(GOAL_HALF));
     ctx.stroke();
   }
-  for (const p of s.players) {
+
+  const disc = (p: XY, r: number, fill: string, ring: boolean) => {
     ctx.beginPath();
-    ctx.arc(tx(p.pos.x), ty(p.pos.y), PLAYER_RADIUS * sx, 0, Math.PI * 2);
-    ctx.fillStyle = p.team === "A" ? "#e2483d" : "#3d6de2";
+    ctx.arc(tx(p.x), ty(p.y), r * sx, 0, Math.PI * 2);
+    ctx.fillStyle = fill;
     ctx.fill();
-    ctx.lineWidth = p.kicking ? 4 : 2;
-    ctx.strokeStyle = "rgba(255,255,255,0.85)";
+    ctx.lineWidth = ring ? 5 : 2.5;
+    ctx.strokeStyle = ring ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.35)";
     ctx.stroke();
-  }
-  ctx.beginPath();
-  ctx.arc(tx(s.ball.pos.x), ty(s.ball.pos.y), BALL_RADIUS * sx, 0, Math.PI * 2);
-  ctx.fillStyle = "#fff";
-  ctx.fill();
+  };
+
+  // Players first…
+  disc(s.opp.pos, PLAYER_RADIUS, s.opp.color, s.opp.kick);
+  disc(s.mine.pos, PLAYER_RADIUS, s.mine.color, s.mine.kick);
+  // …ball last → always visible on top.
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.5)";
+  ctx.shadowBlur = 6 * sx / 10;
+  disc(s.ball, BALL_RADIUS, "#ffffff", false);
+  ctx.restore();
 }
 
 /** Touch joystick (left) + kick (right). Mouse works for desktop testing. */
-function Controls({ onMove, onKick }: { onMove: (v: Vec2) => void; onKick: (k: boolean) => void }) {
+function Controls({ onMove, onKick }: { onMove: (v: XY) => void; onKick: (k: boolean) => void }) {
   const baseRef = useRef<HTMLDivElement | null>(null);
   const [knob, setKnob] = useState({ x: 0, y: 0 });
   const R = 44;
@@ -367,7 +367,6 @@ function Controls({ onMove, onKick }: { onMove: (v: Vec2) => void; onKick: (k: b
     const clamped = Math.min(d, R);
     dx = (dx / d) * clamped; dy = (dy / d) * clamped;
     setKnob({ x: dx, y: dy });
-    // Deadzone: zero out tiny wobble, then rescale so the live range stays full 0..1.
     let nx = dx / R, ny = dy / R;
     const mag = Math.hypot(nx, ny);
     if (mag < JOY_DEADZONE) { nx = 0; ny = 0; }
@@ -383,8 +382,6 @@ function Controls({ onMove, onKick }: { onMove: (v: Vec2) => void; onKick: (k: b
     <div className="flex w-full max-w-md items-center justify-between px-2">
       <div
         ref={baseRef}
-        // Capture the pointer on this element so its moves keep firing even when
-        // the thumb slides outside the circle. Track by buttons OR active touch.
         onPointerDown={(e) => { (e.target as HTMLElement).setPointerCapture(e.pointerId); handle(e); }}
         onPointerMove={(e) => { if (e.pressure > 0 || e.buttons > 0 || e.pointerType === "touch") handle(e); }}
         onPointerUp={reset}
