@@ -81,7 +81,16 @@ export async function syncMatches(): Promise<SyncSummary> {
       !Number.isNaN(newKickoff.getTime()) &&
       newKickoff.getTime() !== new Date(cur.kickoffUtc).getTime();
 
-    if (scoreChanged || statusChanged || kickoffChanged) {
+    // Knockout fixtures seed as "TBD v TBD"; the source fills the real teams
+    // once the bracket resolves. Adopt them only while still scheduled and
+    // only when the source has a real (non-TBD) name — never overwrite a
+    // resolved team with a placeholder, and never touch a live/finished match.
+    const teamsChanged =
+      cur.status === "scheduled" &&
+      ((f.homeTeam !== "TBD" && f.homeTeam !== cur.homeTeam) ||
+        (f.awayTeam !== "TBD" && f.awayTeam !== cur.awayTeam));
+
+    if (scoreChanged || statusChanged || kickoffChanged || teamsChanged) {
       await db
         .update(matches)
         .set({
@@ -89,6 +98,9 @@ export async function syncMatches(): Promise<SyncSummary> {
           awayScore: f.awayScore,
           status: f.status,
           ...(kickoffChanged ? { kickoffUtc: newKickoff } : {}),
+          ...(teamsChanged
+            ? { homeTeam: f.homeTeam, awayTeam: f.awayTeam }
+            : {}),
           lastSyncedAt: new Date(),
         })
         .where(eq(matches.id, cur.id));
