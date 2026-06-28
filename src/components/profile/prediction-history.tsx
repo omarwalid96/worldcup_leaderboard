@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Search, X } from "lucide-react";
 import { formatInTimeZone } from "date-fns-tz";
 import { TeamFlag } from "@/components/match/team-flag";
@@ -219,10 +220,11 @@ export function PredictionHistory({
           {filtered.map((row) => {
         const isFinished = row.status === "finished";
         return (
-          <li
-            key={row.matchId}
-            className="flex flex-col gap-1.5 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-3"
-          >
+          <li key={row.matchId}>
+           <Link
+            href={`/matches/${row.matchId}`}
+            className="flex flex-col gap-1.5 px-3 py-2.5 transition-colors hover:bg-card/80 sm:flex-row sm:items-center sm:gap-3"
+           >
             {/* Teams + flags */}
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <TeamFlag code={row.homeCode} alt={row.homeTeam} size={22} />
@@ -269,6 +271,7 @@ export function PredictionHistory({
 
             {/* Points pill */}
             <PointsPill points={isFinished ? row.pointsAwarded : null} />
+           </Link>
           </li>
             );
           })}
