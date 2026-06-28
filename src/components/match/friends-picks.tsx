@@ -14,6 +14,38 @@ function initials(name: string) {
     .toUpperCase();
 }
 
+/**
+ * "Who wins on pens" tag shown next to a knockout pick. Renders nothing unless
+ * the match is a knockout and the user picked a pens winner. When the exact
+ * shootout-score input returns, pensHomePick/pensAwayPick will already be here
+ * to append "(5–4)" — no query/redaction changes needed then.
+ */
+export function PensTag({
+  pick,
+  homeTeam,
+  awayTeam,
+}: {
+  pick: FriendPick;
+  homeTeam: string;
+  awayTeam: string;
+}) {
+  if (!pick.pensWinner) return null;
+  const team = pick.pensWinner === "home" ? homeTeam : awayTeam;
+  const exact =
+    pick.pensHomePick != null && pick.pensAwayPick != null
+      ? ` ${pick.pensHomePick}–${pick.pensAwayPick}`
+      : "";
+  return (
+    <span
+      title="Picked to win on penalties"
+      className="rounded bg-gold/15 px-1.5 py-0.5 text-[10px] font-semibold text-gold"
+    >
+      🥅 {team}
+      {exact}
+    </span>
+  );
+}
+
 /** Everyone's picks for a match (always visible in this league). */
 export function FriendsPicks({
   picks,
@@ -23,6 +55,8 @@ export function FriendsPicks({
   liveHome = null,
   liveAway = null,
   isKnockout = false,
+  homeTeam = "",
+  awayTeam = "",
 }: {
   picks: FriendPick[];
   currentUserId: string;
@@ -32,6 +66,8 @@ export function FriendsPicks({
   liveHome?: number | null;
   liveAway?: number | null;
   isKnockout?: boolean;
+  homeTeam?: string;
+  awayTeam?: string;
 }) {
   const canLiveScore = live && liveHome != null && liveAway != null;
   function liveProvisional(p: FriendPick): number {
@@ -102,17 +138,22 @@ export function FriendsPicks({
                   </AvatarFallback>
                 </Avatar>
               </Link>
-              <Link
-                href={`/u/${p.username}`}
-                className="flex-1 truncate text-sm hover:underline"
-              >
-                {p.displayName}
-                {isMe && (
-                  <span className="ml-1.5 rounded bg-gold/20 px-1 py-0.5 text-[10px] font-bold uppercase text-gold">
-                    You
-                  </span>
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <Link
+                  href={`/u/${p.username}`}
+                  className="truncate text-sm hover:underline"
+                >
+                  {p.displayName}
+                  {isMe && (
+                    <span className="ml-1.5 rounded bg-gold/20 px-1 py-0.5 text-[10px] font-bold uppercase text-gold">
+                      You
+                    </span>
+                  )}
+                </Link>
+                {isKnockout && (
+                  <PensTag pick={p} homeTeam={homeTeam} awayTeam={awayTeam} />
                 )}
-              </Link>
+              </div>
               {/* Double-down disabled for now (kept for future use):
               {p.isDoubleDown && <Zap className="size-3.5 text-gold" aria-label="Double down" />} */}
               <span className="font-numeric text-xl tabular-nums">

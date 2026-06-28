@@ -69,6 +69,11 @@ export interface FriendPick {
   awayPick: number;
   isDoubleDown: boolean;
   pointsAwarded: number | null;
+  /** Knockout "who wins on pens" pick; null = no pick / redacted pre-reveal. */
+  pensWinner: "home" | "away" | null;
+  /** Exact shootout score pick (input disabled for now; ready for when it returns). */
+  pensHomePick: number | null;
+  pensAwayPick: number | null;
 }
 
 /**
@@ -91,6 +96,9 @@ export async function getMatchPredictions(
       awayPick: predictions.awayPick,
       isDoubleDown: predictions.isDoubleDown,
       pointsAwarded: predictions.pointsAwarded,
+      pensWinner: predictions.pensWinner,
+      pensHomePick: predictions.pensHomePick,
+      pensAwayPick: predictions.pensAwayPick,
       status: matches.status,
     })
     .from(predictions)
@@ -101,6 +109,13 @@ export async function getMatchPredictions(
 
   return rows.map(({ status, ...p }) => {
     const reveal = status === "live" || status === "finished" || p.userId === viewerId;
-    return reveal ? p : { ...p, homePick: -1, awayPick: -1 };
+    const pick: FriendPick = {
+      ...p,
+      pensWinner: (p.pensWinner as "home" | "away" | null) ?? null,
+    };
+    // Redact a rival's picks (scoreline AND pens) until the match is revealed.
+    return reveal
+      ? pick
+      : { ...pick, homePick: -1, awayPick: -1, pensWinner: null, pensHomePick: null, pensAwayPick: null };
   });
 }

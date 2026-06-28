@@ -212,6 +212,8 @@ export function MatchCard({
           liveHome={homeScore}
           liveAway={awayScore}
           isKnockout={match.stage !== "group"}
+          homeTeam={match.homeTeam}
+          awayTeam={match.awayTeam}
         />
       )}
     </>

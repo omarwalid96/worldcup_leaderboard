@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { fetchMatchPicks } from "@/lib/predictions/picks-action";
 import type { FriendPick } from "@/lib/predictions/queries";
 import { basePoints } from "@/lib/scoring";
+import { PensTag } from "./friends-picks";
 
 function initials(name: string) {
   return name
@@ -51,6 +52,8 @@ export function CardPicks({
   liveHome = null,
   liveAway = null,
   isKnockout = false,
+  homeTeam = "",
+  awayTeam = "",
 }: {
   matchId: string;
   graded: boolean;
@@ -59,6 +62,8 @@ export function CardPicks({
   liveHome?: number | null;
   liveAway?: number | null;
   isKnockout?: boolean;
+  homeTeam?: string;
+  awayTeam?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [picks, setPicks] = useState<FriendPick[] | null>(null);
@@ -136,7 +141,12 @@ export function CardPicks({
                           {initials(p.displayName)}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="flex-1 truncate text-xs">{p.displayName}</span>
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="truncate text-xs">{p.displayName}</span>
+                        {isKnockout && (
+                          <PensTag pick={p} homeTeam={homeTeam} awayTeam={awayTeam} />
+                        )}
+                      </div>
                       {/* Double-down disabled for now (kept for future use):
                       {p.isDoubleDown && <Zap className="size-3 text-gold" aria-label="Double down" />} */}
                       <span className="font-numeric text-base tabular-nums">

@@ -181,6 +181,8 @@ export default async function PredictPage({
         liveHome={match.homeScore}
         liveAway={match.awayScore}
         isKnockout={isKnockout}
+        homeTeam={match.homeTeam}
+        awayTeam={match.awayTeam}
       />
     </div>
   );
