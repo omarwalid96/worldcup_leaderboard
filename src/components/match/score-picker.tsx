@@ -96,11 +96,12 @@ export function ScorePicker({
   // picks keep their flag. setter unused while the toggle is commented out.
   const [doubleDown] = useState(initialDoubleDown);
   const [pensWinner, setPensWinner] = useState<"home" | "away" | null>(initialPensWinner);
-  const [pensHome, setPensHome] = useState(initialPensHome ?? 5);
-  const [pensAway, setPensAway] = useState(initialPensAway ?? 4);
-  const [showPensScore, setShowPensScore] = useState(
-    initialPensHome != null && initialPensAway != null,
-  );
+  // Exact-shootout-score input is disabled for now (only "who wins" is live).
+  // Preserve any value a pick already had so saving "who wins" doesn't wipe it.
+  // ponytail: setters/UI restored when we bring the exact-score guess back.
+  const [pensHome] = useState(initialPensHome ?? 5);
+  const [pensAway] = useState(initialPensAway ?? 4);
+  const showPensScore = initialPensHome != null && initialPensAway != null;
   const [pending, startTransition] = useTransition();
   const [floatingLogos, setFloatingLogos] = useState<{ id: number; delay: number; xOffset: number; scale: number }[]>([]);
 
@@ -223,6 +224,14 @@ export function ScorePicker({
               </div>
             </div>
           )}
+          {hadPrediction && isKnockout && pensWinner && (
+            <p className="text-center text-xs text-muted-foreground">
+              Pens to win:{" "}
+              <span className="font-semibold text-foreground">
+                {pensWinner === "home" ? home.name : away.name}
+              </span>
+            </p>
+          )}
           {lockReason && (
             <p className="text-center text-xs text-muted-foreground">{lockReason}</p>
           )}
@@ -292,13 +301,16 @@ export function ScorePicker({
           </button>
           */}
 
-          {/* Penalty shootout (knockout only) — optional bonus prediction */}
+          {/* Knockout draw → pick who wins. Exact-shootout-score guess is
+              commented out for now (ponytail: re-enable when we bring it back —
+              the state, save wiring, and scoring all stay intact). */}
           {isKnockout && (
             <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-card/50 p-4">
               <div>
-                <div className="text-sm font-semibold">If it goes to penalties…</div>
+                <div className="text-sm font-semibold">In case of a draw, who wins?</div>
                 <div className="text-xs text-muted-foreground">
-                  Optional. +1 correct winner, +1 exact shootout score.
+                  Optional. If the match ends level it goes to penalties — pick who
+                  advances for +1.
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -328,6 +340,7 @@ export function ScorePicker({
                 })}
               </div>
 
+              {/* Exact shootout score — disabled for now, restore later.
               {pensWinner && (
                 <button
                   type="button"
@@ -355,6 +368,7 @@ export function ScorePicker({
                   />
                 </div>
               )}
+              */}
             </div>
           )}
 
