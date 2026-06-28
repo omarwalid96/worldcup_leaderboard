@@ -16,8 +16,33 @@ export interface LiveMatch {
   homeScore: number;
   awayScore: number;
   clock: string; // "87'"
-  period: number;
+  period: number; // 1 H1, 2 H2/HT, 3-4 extra time, 5 penalties
+  detail: string; // ESPN phase text e.g. "Halftime", "Penalty Shootout"
   completed: boolean;
+  shootoutHome: number | null; // live pens score, null outside a shootout
+  shootoutAway: number | null;
+}
+
+/**
+ * Short live-phase label from ESPN's period/clock, for the card status pill.
+ * Falls back to the raw clock (or "Live") when ESPN gives no period — so a
+ * missing/flaky ESPN overlay never regresses below today's behavior.
+ */
+export function livePhaseLabel(m: Pick<LiveMatch, "clock" | "period" | "detail">): string {
+  switch (m.period) {
+    case 5:
+      return "Pens";
+    case 4:
+    case 3:
+      // Extra time — keep the running clock if present (e.g. "105'").
+      return m.clock ? `ET ${m.clock}` : "Extra time";
+    case 2:
+      // Halftime shows clock "45'" with the break; the detail text disambiguates.
+      if (/half-?time/i.test(m.detail)) return "HT";
+      return m.clock || "Live";
+    default:
+      return m.clock || "Live";
+  }
 }
 
 export function useLiveMatch(

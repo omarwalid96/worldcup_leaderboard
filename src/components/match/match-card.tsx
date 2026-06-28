@@ -7,7 +7,7 @@ import { Lock, Check, ChevronRight } from "lucide-react";
 import { TeamFlag } from "./team-flag";
 import { KickoffTime, PredictionCountdown } from "./kickoff-time";
 import { CardPicks } from "./card-picks";
-import { useLiveMatch } from "./use-live-match";
+import { useLiveMatch, livePhaseLabel } from "./use-live-match";
 import { cn } from "@/lib/utils";
 import type { MatchWithPrediction } from "@/lib/matches/queries";
 
@@ -120,7 +120,7 @@ export function MatchCard({
         {isLive ? (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-live/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-live">
             <span className="size-1.5 rounded-full bg-live animate-live-pulse" />
-            {live?.clock ? live.clock : "Live"}
+            {live ? livePhaseLabel(live) : "Live"}
           </span>
         ) : isFinished ? (
           <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -138,6 +138,13 @@ export function MatchCard({
         <TeamRow name={match.homeTeam} code={match.homeCode} score={isUpcoming ? null : homeScore} emphasize={homeWon} />
         <TeamRow name={match.awayTeam} code={match.awayCode} score={isUpcoming ? null : awayScore} emphasize={awayWon} />
       </div>
+
+      {/* Live penalty shootout score (only while ESPN reports one). */}
+      {isLive && live?.shootoutHome != null && live?.shootoutAway != null && (
+        <div className="mt-2 flex items-center justify-center gap-1.5 text-xs font-semibold text-live">
+          🥅 Pens {live.shootoutHome}–{live.shootoutAway}
+        </div>
+      )}
 
       {/* Footer */}
       <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3 text-xs">

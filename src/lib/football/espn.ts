@@ -58,6 +58,10 @@ type EspnKeyEvent = {
   clock?: { displayValue?: string };
   team?: { displayName?: string };
   participants?: EspnAthlete[];
+  // Penalty-shootout fields: each kick carries the running tally (as strings).
+  shootout?: boolean;
+  homeShootoutScore?: string | number;
+  awayShootoutScore?: string | number;
 };
 
 function classify(e: EspnKeyEvent): MatchEvent["kind"] | null {
@@ -125,6 +129,35 @@ export async function fetchMatchEvents(
       keyEvents?: EspnKeyEvent[];
     };
     return eventsFromKeyEvents(sum.keyEvents ?? [], wantHome, wantAway);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Live penalty-shootout score for one match (by ESPN event id). The pens tally
+ * is NOT in the scoreboard payload — only on the summary endpoint's keyEvents
+ * (`shootout: true` rows carrying running home/awayShootoutScore). We take the
+ * MAX over those rows so it's order-independent (the tally only climbs). Returns
+ * null if there's no shootout yet or ESPN can't serve it. Display only.
+ */
+export async function liveShootoutScore(
+  eventId: string,
+): Promise<{ home: number; away: number } | null> {
+  try {
+    const sum = (await getJson(`${SUMMARY_BASE}/summary?event=${eventId}`)) as {
+      keyEvents?: EspnKeyEvent[];
+    };
+    let home = -1;
+    let away = -1;
+    for (const e of sum.keyEvents ?? []) {
+      if (!e.shootout) continue;
+      const h = Number(e.homeShootoutScore);
+      const a = Number(e.awayShootoutScore);
+      if (Number.isFinite(h)) home = Math.max(home, h);
+      if (Number.isFinite(a)) away = Math.max(away, a);
+    }
+    return home >= 0 && away >= 0 ? { home, away } : null;
   } catch {
     return null;
   }

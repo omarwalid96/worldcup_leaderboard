@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getLiveMatches } from "@/lib/matches/queries";
 import { teamCodeOf } from "@/lib/football/team-ids";
+import { liveShootoutScore } from "@/lib/football/espn";
 
 /**
  * Live-score overlay for the match page. Read-only, decoupled from the cron.
@@ -24,8 +25,12 @@ interface LiveMatch {
   homeScore: number;
   awayScore: number;
   clock: string; // "60'"
-  period: number;
+  period: number; // 1 H1, 2 H2/HT, 3-4 extra time, 5 penalties
+  detail: string; // ESPN phase text e.g. "Halftime", "2nd Half - Extra Time", "Penalty Shootout"
   completed: boolean; // ESPN says full-time — the stale-LIVE tiebreaker signal
+  // Live penalty-shootout score (ESPN competitor.shootoutScore), null outside pens.
+  shootoutHome: number | null;
+  shootoutAway: number | null;
   matchId: string | null; // our DB match id (resolved by FIFA code), for deep-linking
 }
 
@@ -79,14 +84,31 @@ export async function GET() {
       const ac = teamCodeOf(awayName);
       const matchId =
         hc && ac ? (dbById.get([hc, ac].sort().join("-")) ?? null) : null;
+      const period = st.period ?? 0;
+      // Pens score isn't in the scoreboard payload — only in the summary
+      // endpoint's keyEvents. Fetch that one match's summary ONLY when ESPN says
+      // we're in the shootout (period 5), so we don't pull a summary per match
+      // every poll. Fails soft to null (label still shows "Pens").
+      let shootoutHome: number | null = null;
+      let shootoutAway: number | null = null;
+      if (period >= 5 && e?.id) {
+        const sh = await liveShootoutScore(String(e.id));
+        if (sh) {
+          shootoutHome = sh.home;
+          shootoutAway = sh.away;
+        }
+      }
       matches.push({
         home: homeName,
         away: awayName,
         homeScore: Number(home.score) || 0,
         awayScore: Number(away.score) || 0,
         clock: st.displayClock ?? "",
-        period: st.period ?? 0,
+        period,
+        detail: st.type?.detail ?? st.type?.shortDetail ?? "",
         completed: Boolean(st.type?.completed),
+        shootoutHome,
+        shootoutAway,
         matchId,
       });
     }

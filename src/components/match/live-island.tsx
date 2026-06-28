@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import { livePhaseLabel } from "./use-live-match";
 
 /**
  * Google-Sports-style live island: a compact pill pinned under the header that
@@ -20,7 +21,11 @@ interface Live {
   homeScore: number;
   awayScore: number;
   clock: string;
+  period: number;
+  detail: string;
   completed: boolean;
+  shootoutHome: number | null;
+  shootoutAway: number | null;
   matchId: string | null;
 }
 
@@ -96,12 +101,15 @@ export function LiveIsland({
             >
               <span className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-live">
                 <span className="size-1.5 animate-pulse rounded-full bg-live" />
-                {m.clock || "Live"}
+                {livePhaseLabel(m)}
               </span>
               <span className="flex min-w-0 flex-1 items-center justify-center gap-2 text-sm">
                 <span className="truncate font-medium">{m.home}</span>
                 <span className="font-numeric tabular-nums font-bold">
                   {m.homeScore}–{m.awayScore}
+                  {m.shootoutHome != null && m.shootoutAway != null && (
+                    <span className="ml-1 text-live">({m.shootoutHome}–{m.shootoutAway})</span>
+                  )}
                 </span>
                 <span className="truncate font-medium">{m.away}</span>
               </span>

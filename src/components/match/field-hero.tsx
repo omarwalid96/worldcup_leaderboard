@@ -1,7 +1,7 @@
 "use client";
 
 import { TeamFlag } from "./team-flag";
-import { useLiveMatch } from "./use-live-match";
+import { useLiveMatch, livePhaseLabel } from "./use-live-match";
 
 /**
  * Football-pitch hero for the match detail page: a CSS-drawn green field
@@ -36,7 +36,12 @@ export function FieldHero({
 
   const homeScore = live?.homeScore ?? dbHome ?? 0;
   const awayScore = live?.awayScore ?? dbAway ?? 0;
-  const label = isLive ? live?.clock || "Live" : (clockLabel ?? "Full time");
+  const label = isLive && live ? livePhaseLabel(live) : (clockLabel ?? "Full time");
+  // Live shootout score, shown under the main score during penalties.
+  const pens =
+    isLive && live?.shootoutHome != null && live?.shootoutAway != null
+      ? `${live.shootoutHome}–${live.shootoutAway}`
+      : null;
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-success/25 px-6 py-6 text-white shadow-[inset_0_1px_0_oklch(1_0_0/0.06)]">
@@ -123,6 +128,11 @@ export function FieldHero({
             <span className="text-white/50">–</span>
             <span>{awayScore}</span>
           </div>
+          {pens && (
+            <div className="font-numeric text-sm font-bold tabular-nums text-live drop-shadow">
+              🥅 Pens {pens}
+            </div>
+          )}
           {isLive ? (
             <div className="flex items-center gap-1.5 rounded-full border border-live/40 bg-background/80 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-live backdrop-blur-sm">
               <span className="size-1.5 animate-pulse rounded-full bg-live" />
