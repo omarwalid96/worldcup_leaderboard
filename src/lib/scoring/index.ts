@@ -2,30 +2,26 @@
  * Pure scoring functions. No I/O — deterministic and unit-testable.
  *
  * Rules:
- *   - Exact scoreline:                3 pts
+ *   - Exact scoreline:                3 pts   (same in group and knockout)
  *   - Correct outcome only (W/D/L):   1 pt   (right winner, or both drew)
  *   - Wrong outcome:                  0 pts
  *   - Double-down: that match's points are doubled (exact → 6, outcome → 2)
  *
- * Knockout extras (a knockout always has a winner):
- *   - Exact DRAW (e.g. predicted 0–0, actual 0–0 → pens): 2 pts (not 3)
- *   - Penalty shootout (only when the match went to pens, NOT doubled):
- *       correct shootout winner: +1 ; exact shootout score (e.g. 5–4): +1 more
- *   So a perfect knockout-draw call = 2 + 1 + 1 = 4.
+ * Knockout extra (only when the 90'+ET result is a DRAW and it goes to pens):
+ *   - Correct shootout winner: +1 (on top of the scoreline points, NOT doubled).
+ *   So a perfect knockout-draw call = 3 (exact draw) + 1 (pens winner) = 4.
+ *   (The exact-shootout-score +1 is disabled for now — see scorePens.)
  */
 
 export const SCORING = {
   exact: 3,
-  // Knockouts always have a winner, so an exact DRAW (which sends it to pens) is
-  // worth less than an exact decisive score — the winner is decided on pens.
-  exactKnockoutDraw: 2,
   resultOnly: 1,
   wrong: 0,
   streakBonusPerDay: 1,
   streakBonusCap: 5,
-  // Penalty shootout bonuses (knockout only, on top of the scoreline points).
+  // Penalty shootout bonus (knockout only, on top of the scoreline points).
   pensWinner: 1, // correct team advances on pens
-  pensExact: 1, // also nailed the exact shootout score (e.g. 5–4)
+  pensExact: 1, // exact shootout score — disabled for now, kept for later
 } as const;
 
 export interface PensInput {
@@ -40,8 +36,10 @@ export interface PensInput {
 
 /**
  * Bonus points for a penalty-shootout prediction. Only call this when the match
- * actually went to pens. Winner correct = +1; exact shootout score = +2 more.
- * Double-down does NOT apply to the pens bonus.
+ * actually went to pens. Correct shootout winner = +1. Double-down does NOT
+ * apply to the pens bonus.
+ * ponytail: the exact-shootout-score +1 is disabled for now (input is hidden);
+ * the branch is kept commented out to restore alongside the UI.
  */
 export function scorePens(input: PensInput): number {
   if (!input.pickWinner) return 0;
@@ -49,16 +47,16 @@ export function scorePens(input: PensInput): number {
     input.actualHome > input.actualAway ? "home" : "away";
   if (input.pickWinner !== actualWinner) return 0;
 
-  let pts = SCORING.pensWinner;
-  if (
-    input.pickHome != null &&
-    input.pickAway != null &&
-    input.pickHome === input.actualHome &&
-    input.pickAway === input.actualAway
-  ) {
-    pts += SCORING.pensExact;
-  }
-  return pts;
+  // Exact shootout score bonus — disabled for now, restore with the UI input.
+  // if (
+  //   input.pickHome != null &&
+  //   input.pickAway != null &&
+  //   input.pickHome === input.actualHome &&
+  //   input.pickAway === input.actualAway
+  // ) {
+  //   return SCORING.pensWinner + SCORING.pensExact;
+  // }
+  return SCORING.pensWinner;
 }
 
 export type Outcome = "home" | "draw" | "away";
@@ -81,12 +79,11 @@ export interface ScoreInput {
 
 /** Base points for a single prediction before the double-down multiplier. */
 export function basePoints(input: Omit<ScoreInput, "isDoubleDown">): number {
-  const { homePick, awayPick, homeActual, awayActual, isKnockout } = input;
+  const { homePick, awayPick, homeActual, awayActual } = input;
 
-  // Exact scoreline.
+  // Exact scoreline — 3 in both group and knockout (an exact knockout draw is
+  // no longer discounted; the pens winner bonus is handled separately).
   if (homePick === homeActual && awayPick === awayActual) {
-    // In knockouts an exact DRAW is worth less (the winner is decided on pens).
-    if (isKnockout && homeActual === awayActual) return SCORING.exactKnockoutDraw;
     return SCORING.exact;
   }
 
