@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RankTrend } from "@/components/profile/rank-trend";
 import { PointsChart } from "@/components/profile/points-chart";
 import { OutcomeChart } from "@/components/profile/outcome-chart";
+import { PensChart } from "@/components/profile/pens-chart";
 import { RankChart } from "@/components/profile/rank-chart";
 import { ParticipationChart } from "@/components/profile/participation-chart";
 import { PredictionHistory } from "@/components/profile/prediction-history";
@@ -28,6 +29,7 @@ import {
   getUserBadges,
   getPointsHistory,
   getOutcomeBreakdown,
+  getPensBreakdown,
   getRankHistory,
   getParticipationHistory,
 } from "@/lib/profile/stats";
@@ -43,6 +45,7 @@ export default async function ProfilePage() {
     pointsHistory,
     predictionHistory,
     outcomeBreakdown,
+    pensBreakdown,
     rankHistoryData,
     participationHistory,
   ] = await Promise.all([
@@ -51,6 +54,7 @@ export default async function ProfilePage() {
     getPointsHistory(profile.id),
     getUserPredictionHistory(profile.id),
     getOutcomeBreakdown(profile.id),
+    getPensBreakdown(profile.id),
     getRankHistory(profile.id),
     getParticipationHistory(profile.id),
   ]);
@@ -158,6 +162,16 @@ export default async function ProfilePage() {
           </CardHeader>
           <CardContent>
             <OutcomeChart data={outcomeBreakdown} />
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60 bg-card/70">
+          <CardHeader className="flex-row items-center gap-2 space-y-0">
+            <span className="text-base leading-none">🥅</span>
+            <CardTitle className="text-base">Penalty picks</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PensChart data={pensBreakdown} />
           </CardContent>
         </Card>
 

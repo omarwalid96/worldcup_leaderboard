@@ -20,6 +20,36 @@ function resultOf(r: PredictionHistoryRow): "exact" | "correct" | "wrong" | null
   return r.pointsAwarded > 0 ? "correct" : "wrong";
 }
 
+/** Did the pens pick win? null when the match didn't go to pens / no pick. */
+function pensCorrect(r: PredictionHistoryRow): boolean | null {
+  if (!r.wentToPens || !r.pensWinner || r.pensHome == null || r.pensAway == null) return null;
+  const actual = r.pensHome > r.pensAway ? "home" : "away";
+  return r.pensWinner === actual;
+}
+
+/** "🥅 <team>" tag under a knockout pick, with ✓/✗ once the shootout is known. */
+function PensPickTag({ row }: { row: PredictionHistoryRow }) {
+  if (!row.isKnockout || !row.pensWinner || row.homePick < 0) return null;
+  const team = row.pensWinner === "home" ? row.homeTeam : row.awayTeam;
+  const ok = pensCorrect(row);
+  return (
+    <span
+      title="Picked to win on penalties"
+      className={cn(
+        "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold",
+        ok === null
+          ? "bg-gold/15 text-gold"
+          : ok
+            ? "bg-success/15 text-success"
+            : "bg-destructive/15 text-destructive",
+      )}
+    >
+      🥅 {team}
+      {ok === true ? " ✓" : ok === false ? " ✗" : ""}
+    </span>
+  );
+}
+
 function PointsPill({ points }: { points: number | null }) {
   if (points === null) return null;
   return (
@@ -210,7 +240,7 @@ export function PredictionHistory({
               className="shrink-0 text-xs text-muted-foreground"
             />
 
-            {/* Pick */}
+            {/* Pick (+ pens pick tag for knockout matches) */}
             <div className="flex items-center gap-1.5">
               {/* Double-down disabled for now (kept for future use):
               {row.isDoubleDown && (
@@ -225,6 +255,7 @@ export function PredictionHistory({
                   `${row.homePick}–${row.awayPick}`
                 )}
               </span>
+              <PensPickTag row={row} />
             </div>
 
             {/* Actual result */}

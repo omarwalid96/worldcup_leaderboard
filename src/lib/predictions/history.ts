@@ -1,5 +1,5 @@
 import "server-only";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { matches, predictions, profiles } from "@/db/schema";
 
@@ -17,6 +17,14 @@ export interface PredictionHistoryRow {
   awayPick: number;
   isDoubleDown: boolean;
   pointsAwarded: number | null;
+  /** Knockout pens pick + actual result (for the pens tag + accuracy chart). */
+  isKnockout: boolean;
+  pensWinner: "home" | "away" | null;
+  pensHomePick: number | null;
+  pensAwayPick: number | null;
+  wentToPens: boolean;
+  pensHome: number | null;
+  pensAway: number | null;
 }
 
 /**
@@ -44,20 +52,32 @@ export async function getUserPredictionHistory(
       awayPick: predictions.awayPick,
       isDoubleDown: predictions.isDoubleDown,
       pointsAwarded: predictions.pointsAwarded,
+      isKnockout: sql<boolean>`(${matches.stage} <> 'group')`,
+      pensWinner: predictions.pensWinner,
+      pensHomePick: predictions.pensHomePick,
+      pensAwayPick: predictions.pensAwayPick,
+      wentToPens: matches.wentToPens,
+      pensHome: matches.pensHome,
+      pensAway: matches.pensAway,
     })
     .from(predictions)
     .innerJoin(matches, eq(matches.id, predictions.matchId))
     .where(eq(predictions.userId, userId))
     .orderBy(desc(matches.kickoffUtc));
 
+  const mapped: PredictionHistoryRow[] = rows.map((r) => ({
+    ...r,
+    pensWinner: (r.pensWinner as "home" | "away" | null) ?? null,
+  }));
+
   if (viewerId && viewerId !== userId) {
-    return rows.map((r) =>
+    return mapped.map((r) =>
       r.status === "live" || r.status === "finished"
         ? r
-        : { ...r, homePick: -1, awayPick: -1 },
+        : { ...r, homePick: -1, awayPick: -1, pensWinner: null, pensHomePick: null, pensAwayPick: null },
     );
   }
-  return rows;
+  return mapped;
 }
 
 /** Look up a profile by username. Returns null when not found. */

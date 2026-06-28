@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PredictionHistory } from "@/components/profile/prediction-history";
 import { PointsChart } from "@/components/profile/points-chart";
 import { OutcomeChart } from "@/components/profile/outcome-chart";
+import { PensChart } from "@/components/profile/pens-chart";
 import { RankChart } from "@/components/profile/rank-chart";
 import { ParticipationChart } from "@/components/profile/participation-chart";
 import { getProfileByUsername, getUserPredictionHistory } from "@/lib/predictions/history";
@@ -27,6 +28,7 @@ import {
   getProfileStats,
   getPointsHistory,
   getOutcomeBreakdown,
+  getPensBreakdown,
   getRankHistory,
   getParticipationHistory,
   getUserBadges,
@@ -61,6 +63,7 @@ export default async function UserProfilePage({
     history,
     pointsHistory,
     outcomeBreakdown,
+    pensBreakdown,
     rankHistoryData,
     participationHistory,
     earnedBadges,
@@ -69,6 +72,7 @@ export default async function UserProfilePage({
     getUserPredictionHistory(profile.id, sessionProfile?.id),
     getPointsHistory(profile.id),
     getOutcomeBreakdown(profile.id),
+    getPensBreakdown(profile.id),
     getRankHistory(profile.id),
     getParticipationHistory(profile.id),
     getUserBadges(profile.id),
@@ -185,6 +189,16 @@ export default async function UserProfilePage({
           </CardHeader>
           <CardContent>
             <OutcomeChart data={outcomeBreakdown} />
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60 bg-card/70">
+          <CardHeader className="flex-row items-center gap-2 space-y-0">
+            <span className="text-base leading-none">🥅</span>
+            <CardTitle className="text-base">Penalty picks</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PensChart data={pensBreakdown} />
           </CardContent>
         </Card>
 

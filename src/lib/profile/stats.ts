@@ -238,6 +238,43 @@ export async function getOutcomeBreakdown(userId: string): Promise<OutcomeBreakd
   };
 }
 
+export interface PensBreakdown {
+  correct: number;
+  wrong: number;
+}
+
+/**
+ * Penalty-shootout pick accuracy: among knockout matches that actually went to
+ * pens and where the user picked a winner, how many did they get right. Only
+ * these matters — a pens pick on a match decided in normal time never counts.
+ */
+export async function getPensBreakdown(userId: string): Promise<PensBreakdown> {
+  const [row] = await db
+    .select({
+      correct: sql<number>`count(*) filter (
+        where case when ${matches.pensHome} > ${matches.pensAway} then 'home' else 'away' end
+              = ${predictions.pensWinner}
+      )::int`,
+      wrong: sql<number>`count(*) filter (
+        where case when ${matches.pensHome} > ${matches.pensAway} then 'home' else 'away' end
+              <> ${predictions.pensWinner}
+      )::int`,
+    })
+    .from(predictions)
+    .innerJoin(matches, eq(matches.id, predictions.matchId))
+    .where(
+      and(
+        eq(predictions.userId, userId),
+        eq(matches.wentToPens, true),
+        isNotNull(predictions.pensWinner),
+        isNotNull(matches.pensHome),
+        isNotNull(matches.pensAway),
+      ),
+    );
+
+  return { correct: row?.correct ?? 0, wrong: row?.wrong ?? 0 };
+}
+
 export interface RankPoint {
   day: string;
   label: string;
