@@ -3,7 +3,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { matches } from "@/db/schema";
 import { getFootballProvider } from "./index";
-import { fetchMatchGamecast } from "./espn";
+import { fetchMatchGamecast, finalShootoutScore } from "./espn";
 
 /** A score/status change worth a league-wide push (goal, kickoff, full time). */
 export interface MatchAlert {
@@ -186,6 +186,49 @@ export async function persistMatchEvents(): Promise<number> {
     stored++;
   }
   return stored;
+}
+
+/**
+ * Persist the penalty-shootout result from ESPN for finished knockout matches
+ * that drew in regulation but don't yet have pens recorded. ESPN is the only
+ * source that reports the shootout score (worldcup26 doesn't), so without this
+ * an admin had to type the score in by hand for grading to award the pens bonus
+ * — and grading would lock the picks at 0 first if it ran before that.
+ *
+ * Must run BEFORE gradeFinishedMatches so the bonus lands on the first grade.
+ * Idempotent: only touches went_to_pens=false rows; fails soft per match (ESPN
+ * down / aged off the scoreboard just leaves it for a later run, same window as
+ * persistMatchEvents). Returns how many matches it filled.
+ */
+export async function backfillPensFromEspn(): Promise<number> {
+  const pending = await db
+    .select({
+      id: matches.id,
+      homeTeam: matches.homeTeam,
+      awayTeam: matches.awayTeam,
+    })
+    .from(matches)
+    .where(
+      and(
+        eq(matches.status, "finished"),
+        eq(matches.wentToPens, false),
+        sql`${matches.stage} <> 'group'`,
+        // Pens only happen on a regulation draw — skip decisive results.
+        sql`${matches.homeScore} = ${matches.awayScore}`,
+      ),
+    );
+
+  let filled = 0;
+  for (const m of pending) {
+    const pens = await finalShootoutScore(m.homeTeam, m.awayTeam);
+    if (!pens) continue; // no shootout, aged off, or ESPN down — retry next run
+    await db
+      .update(matches)
+      .set({ wentToPens: true, pensHome: pens.home, pensAway: pens.away })
+      .where(eq(matches.id, m.id));
+    filled++;
+  }
+  return filled;
 }
 
 /**

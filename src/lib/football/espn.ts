@@ -163,6 +163,49 @@ export async function liveShootoutScore(
   }
 }
 
+/**
+ * Final shootout score for one match resolved by team NAME (not ESPN event id),
+ * so the cron can persist pens into the DB without already knowing the id. Same
+ * scoreboard-resolution pattern as fetchMatchEvents → so it only works while the
+ * match is still on ESPN's scoreboard (the ~1-day window persistMatchEvents also
+ * lives in). Returns null if the match aged off, didn't go to pens, or ESPN is
+ * down. The keyEvents shootout rows persist after full-time, so this is valid
+ * for a just-finished match.
+ */
+export async function finalShootoutScore(
+  home: string,
+  away: string,
+): Promise<{ home: number; away: number } | null> {
+  const wantHome = teamCodeOf(home);
+  const wantAway = teamCodeOf(away);
+  if (!wantHome || !wantAway) return null;
+  try {
+    const sb = (await getJson(`${SUMMARY_BASE}/scoreboard`)) as {
+      events?: Array<{
+        id?: string;
+        competitions?: Array<{
+          competitors?: Array<{ homeAway: string; team?: { displayName?: string } }>;
+        }>;
+      }>;
+    };
+    for (const e of sb.events ?? []) {
+      const c = e.competitions?.[0]?.competitors ?? [];
+      const h = c.find((x) => x.homeAway === "home")?.team?.displayName;
+      const a = c.find((x) => x.homeAway === "away")?.team?.displayName;
+      if (
+        e.id &&
+        teamCodeOf(h ?? "") === wantHome &&
+        teamCodeOf(a ?? "") === wantAway
+      ) {
+        return liveShootoutScore(e.id);
+      }
+    }
+    return null; // aged off the scoreboard
+  } catch {
+    return null;
+  }
+}
+
 /** Map ESPN keyEvents → our goal/card timeline. Shared by events + gamecast. */
 function eventsFromKeyEvents(
   keyEvents: EspnKeyEvent[],

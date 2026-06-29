@@ -5,6 +5,7 @@ import {
   syncMatches,
   markInPlayLive,
   persistMatchEvents,
+  backfillPensFromEspn,
 } from "@/lib/football/sync";
 import {
   gradeFinishedMatches,
@@ -124,6 +125,9 @@ export async function runPipeline(): Promise<PipelineResult> {
   let eventsStored = 0;
 
   if (somethingChanged) {
+    // Record any shootout result from ESPN before grading, so the knockout pens
+    // bonus lands on the first grade instead of needing a manual entry + regrade.
+    await backfillPensFromEspn();
     grading = await gradeFinishedMatches();
     await snapshotPointsHistory();
     // Snapshot goals/cards for matches that just finished, so the timeline
