@@ -89,9 +89,19 @@ export async function GET() {
       // endpoint's keyEvents. Fetch that one match's summary ONLY when ESPN says
       // we're in the shootout (period 5), so we don't pull a summary per match
       // every poll. Fails soft to null (label still shows "Pens").
-      let shootoutHome: number | null = null;
-      let shootoutAway: number | null = null;
-      if (period >= 5 && e?.id) {
+      // Prefer the shootout tally sitting right on the scoreboard competitor
+      // (ESPN populates `shootoutScore` during pens). Only if it's absent do we
+      // pay for the per-match summary fetch + keyEvents parse. ponytail: the
+      // scoreboard value is already in hand — don't refetch when it's there.
+      let shootoutHome: number | null =
+        period >= 5 && home.shootoutScore != null
+          ? Number(home.shootoutScore)
+          : null;
+      let shootoutAway: number | null =
+        period >= 5 && away.shootoutScore != null
+          ? Number(away.shootoutScore)
+          : null;
+      if (period >= 5 && shootoutHome == null && e?.id) {
         const sh = await liveShootoutScore(String(e.id));
         if (sh) {
           shootoutHome = sh.home;
