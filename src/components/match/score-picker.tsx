@@ -113,6 +113,10 @@ export function ScorePicker({
     pensWinner !== initialPensWinner ||
     (showPensScore && (pensHome !== initialPensHome || pensAway !== initialPensAway));
 
+  // Knockout picks must call the shootout: any result can end level and go to
+  // pens, so we always require a winner (not just when the scoreline is a draw).
+  const pensMissing = isKnockout && !pensWinner;
+
   function onSave() {
     startTransition(async () => {
       const res = await savePrediction({
@@ -305,11 +309,20 @@ export function ScorePicker({
               commented out for now (ponytail: re-enable when we bring it back —
               the state, save wiring, and scoring all stay intact). */}
           {isKnockout && (
-            <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-card/50 p-4">
+            <div
+              className={cn(
+                "flex flex-col gap-3 rounded-xl border bg-card/50 p-4 transition-colors",
+                pensMissing
+                  ? "border-destructive/60 bg-destructive/5"
+                  : "border-border/60",
+              )}
+            >
               <div>
-                <div className="text-sm font-semibold">In case of a draw, who wins?</div>
+                <div className="text-sm font-semibold">
+                  Who wins on penalties? <span className="text-destructive">*</span>
+                </div>
                 <div className="text-xs text-muted-foreground">
-                  Optional. If the match ends level it goes to penalties — pick who
+                  Required. If the match ends level it goes to penalties — pick who
                   advances for +1.
                 </div>
               </div>
@@ -376,7 +389,7 @@ export function ScorePicker({
             size="lg"
             className="h-12 text-base"
             onClick={onSave}
-            disabled={pending || (!dirty && hadPrediction)}
+            disabled={pending || pensMissing || (!dirty && hadPrediction)}
           >
             {pending ? (
               <Loader2 className="animate-spin" />

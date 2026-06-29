@@ -73,6 +73,7 @@ export async function savePrediction(input: {
       id: matches.id,
       kickoffUtc: matches.kickoffUtc,
       matchday: matches.matchday,
+      isKnockout: sql<boolean>`(${matches.stage} <> 'group')`,
       open: sql<boolean>`(${matches.kickoffUtc} > now())`,
       inWindow: sql<boolean>`(
         now() >= ${matches.kickoffUtc} - interval '24 hours'
@@ -92,6 +93,11 @@ export async function savePrediction(input: {
       ok: false,
       error: "Predictions open 24 hours before kickoff.",
     };
+  }
+  // Knockout picks must include a pens winner (any result can end level and go
+  // to penalties). Enforced server-side too — the client gate is UX only.
+  if (match.isKnockout && !pensWinner) {
+    return { ok: false, error: "Pick who wins on penalties before locking in." };
   }
 
   // Enforce one double-down per matchday: if turning this on, clear any other
