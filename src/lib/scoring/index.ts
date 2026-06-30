@@ -73,7 +73,9 @@ export interface ScoreInput {
   homeActual: number;
   awayActual: number;
   isDoubleDown: boolean;
-  /** Knockout matches score an exact DRAW at 2 (not 3) — winner decided on pens. */
+  /** Kept for callers; base scoreline points are the same in group and knockout
+   *  (an exact draw is 3). The knockout pens winner bonus is scored separately
+   *  in scorePens, not here. */
   isKnockout?: boolean;
 }
 

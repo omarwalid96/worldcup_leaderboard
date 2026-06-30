@@ -149,7 +149,7 @@ export default async function PredictPage({
       {editable && (
         <p className="text-center text-xs text-muted-foreground">
           {isKnockout
-            ? "Exact score 3 · correct result 1 · exact draw 2. A pens winner is required — if it goes to penalties, the right call adds +1. Picks lock at kickoff."
+            ? "Exact score 3 · correct result 1. A pens winner is required — if it goes to penalties, the right call adds +1. Picks lock at kickoff."
             : "Exact score = 3 pts · correct result = 1 pt. Picks lock at kickoff."}
         </p>
       )}

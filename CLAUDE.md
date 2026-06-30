@@ -88,9 +88,10 @@ DB / admin scripts (all load `.env.local`): see "Scripts" below.
 
 ## Core domain rules (server-authoritative)
 - **Scoring** (`src/lib/scoring/index.ts`): exact scoreline = **3**, correct
-  outcome (right winner or both-draw) = **1**, wrong = **0**. Knockout exact-draw
-  = **2** (winner decided on pens); pens bonus +1 winner / +1 exact (knockout
-  only). Pure + unit-testable.
+  outcome (right winner or both-draw) = **1**, wrong = **0**. Same in group and
+  knockout (an exact draw is **3**, not discounted). Knockout pens bonus is
+  separate, on top: +1 winner / +1 exact (the exact-shootout +1 is disabled for
+  now). Pure + unit-testable.
 - **Double-down (×2) is DISABLED in the UI** but the scoring/DB logic is intact
   (commented out, search "disabled for now"). `scorePrediction` still ×2 if the
   `is_double_down` flag is set; new picks can't set it. `streakBonus()` is
