@@ -163,6 +163,36 @@ DB / admin scripts (all load `.env.local`): see "Scripts" below.
     cards timeline (newest first), from `/api/match-events`; persisted in
     `matches.events` jsonb (migration `0015`).
 
+## Penalty shootouts (live display + auto-persist)
+- **Live display**: `/api/live` is **dynamic** (`export const dynamic =
+  "force-dynamic"` — NO route-level `revalidate`; the ESPN-fetch cache
+  `next:{revalidate:10}` is what caps upstream). A route `revalidate` previously
+  cached the whole response and staled the live pens score — don't re-add it.
+  Pens render whenever `shootoutHome`/`shootoutAway` are non-null, NOT gated on
+  `isLive` (ESPN flips `completed:true` on the deciding kick, which would hide
+  the score at the climax — see `field-hero.tsx`, `match-card.tsx`).
+- **Auto-persist (no manual entry)**: the cron's `backfillPensFromEspn()`
+  (`sync.ts`) runs BEFORE `gradeFinishedMatches` so the +1 bonus lands on the
+  first grade. It resolves the ESPN event via `resolveEspnEventId` (espn.ts),
+  which falls back to the **dated** scoreboard (`?dates=YYYYMMDD`, the match's
+  UTC date AND the day before — ESPN buckets by US-local date) so a match that
+  aged off the LIVE board (wc26 marks finished ~1h late) is still found.
+  `liveShootoutScore` reads the keyEvents `shootout:true` rows while live, then
+  falls back to `header.competitions[].competitors[].shootoutScore` once
+  finished (ESPN drops the keyEvents shootout rows at full time). If a match was
+  already graded at 0 before pens arrived, backfill clears its
+  `points_awarded=NULL` so the next grade re-scores with the bonus.
+- **Debug tooling (kept; inert in prod)**: set `LIVE_MOCK=1` and `/api/live`
+  also serves the match in `scratchpad/live-mock.json` (ESPN shape) so you can
+  hand-step a shootout and watch the real client overlay update — no real ESPN
+  match needed. `scripts/live-pens-mock-setup.mjs` creates a throwaway test
+  user + TEST league + 1 LIVE knockout match (Brazil v Argentina, real FIFA
+  codes so it reconciles) + a pick + the JSON; edit `shootoutHome/away` (and
+  flip `completed`) live; `scripts/live-pens-mock-cleanup.mjs` removes it all.
+  Drive in puppeteer-core + system Chrome (`/usr/bin/google-chrome-stable`)
+  against `LIVE_MOCK=1 PORT=<n> npm run start`. Off without `LIVE_MOCK` → prod
+  cache untouched, no mock.
+
 ## Auth
 - Preset username + password (no email/OAuth). Username → synthetic email
   `<username>@groupstage.local` (`src/lib/auth/usernames.ts`). Login/logout

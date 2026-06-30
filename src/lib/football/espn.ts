@@ -88,6 +88,81 @@ async function getJson(url: string): Promise<unknown> {
   return res.json();
 }
 
+type ScoreboardEvent = {
+  id?: string;
+  competitions?: Array<{
+    competitors?: Array<{ homeAway: string; team?: { displayName?: string } }>;
+  }>;
+};
+
+/** Find the ESPN event id in one scoreboard payload by FIFA team code pair. */
+function eventIdInScoreboard(
+  events: ScoreboardEvent[] | undefined,
+  wantHome: string,
+  wantAway: string,
+): string | undefined {
+  for (const e of events ?? []) {
+    const c = e.competitions?.[0]?.competitors ?? [];
+    const h = c.find((x) => x.homeAway === "home")?.team?.displayName;
+    const a = c.find((x) => x.homeAway === "away")?.team?.displayName;
+    if (
+      e.id &&
+      teamCodeOf(h ?? "") === wantHome &&
+      teamCodeOf(a ?? "") === wantAway
+    ) {
+      return e.id;
+    }
+  }
+  return undefined;
+}
+
+/** ESPN `?dates=` keys YYYYMMDD; build it from a Date in UTC. */
+function espnDateParam(d: Date): string {
+  return (
+    d.getUTCFullYear().toString() +
+    String(d.getUTCMonth() + 1).padStart(2, "0") +
+    String(d.getUTCDate()).padStart(2, "0")
+  );
+}
+
+/**
+ * Resolve an ESPN event id by team code, robust to the match aging off the live
+ * scoreboard. Tries the live board first (cheapest, covers in-play), then the
+ * DATED scoreboard for the match's kickoff date AND the day before — ESPN buckets
+ * by US-local date, so a 01:00 UTC kickoff lands on the prior calendar day. The
+ * dated board retains finished matches long after they drop off the live one, so
+ * the cron's post-match pens persist still finds them. `kickoff` optional: when
+ * omitted (live display) only the live board is queried. Returns undefined if no
+ * board has the match.
+ */
+async function resolveEspnEventId(
+  wantHome: string,
+  wantAway: string,
+  kickoff?: Date,
+): Promise<string | undefined> {
+  const tryBoard = async (url: string) => {
+    try {
+      const sb = (await getJson(url)) as { events?: ScoreboardEvent[] };
+      return eventIdInScoreboard(sb.events, wantHome, wantAway);
+    } catch {
+      return undefined;
+    }
+  };
+
+  // 1) live scoreboard (in-play + very recent)
+  let id = await tryBoard(`${SUMMARY_BASE}/scoreboard`);
+  if (id || !kickoff) return id;
+
+  // 2) dated scoreboard: kickoff's UTC date, then the day before (US-local skew).
+  const day = new Date(kickoff);
+  const prev = new Date(kickoff.getTime() - 24 * 60 * 60 * 1000);
+  for (const d of [day, prev]) {
+    id = await tryBoard(`${SUMMARY_BASE}/scoreboard?dates=${espnDateParam(d)}`);
+    if (id) return id;
+  }
+  return undefined;
+}
+
 /**
  * Goals + cards timeline for one match from ESPN's summary endpoint, keyed by
  * FIFA team code. Two-step: scoreboard → event id, then summary?event=<id>.
@@ -147,7 +222,14 @@ export async function liveShootoutScore(
   try {
     const sum = (await getJson(`${SUMMARY_BASE}/summary?event=${eventId}`)) as {
       keyEvents?: EspnKeyEvent[];
+      header?: {
+        competitions?: Array<{
+          competitors?: Array<{ homeAway?: string; shootoutScore?: string | number }>;
+        }>;
+      };
     };
+    // Preferred: the running tally on each `shootout:true` keyEvent row (present
+    // DURING a live shootout). MAX over rows so it's order-independent.
     let home = -1;
     let away = -1;
     for (const e of sum.keyEvents ?? []) {
@@ -157,7 +239,19 @@ export async function liveShootoutScore(
       if (Number.isFinite(h)) home = Math.max(home, h);
       if (Number.isFinite(a)) away = Math.max(away, a);
     }
-    return home >= 0 && away >= 0 ? { home, away } : null;
+    if (home >= 0 && away >= 0) return { home, away };
+    // Fallback: once the match is FINISHED, ESPN drops the keyEvents shootout
+    // rows but exposes the final tally on each competitor's `shootoutScore` in
+    // the summary header. This is the path the cron persist hits (post-match).
+    const comps = sum.header?.competitions?.[0]?.competitors ?? [];
+    const h = comps.find((c) => c.homeAway === "home")?.shootoutScore;
+    const a = comps.find((c) => c.homeAway === "away")?.shootoutScore;
+    if (h != null && a != null) {
+      const hn = Number(h);
+      const an = Number(a);
+      if (Number.isFinite(hn) && Number.isFinite(an)) return { home: hn, away: an };
+    }
+    return null;
   } catch {
     return null;
   }
@@ -165,45 +259,26 @@ export async function liveShootoutScore(
 
 /**
  * Final shootout score for one match resolved by team NAME (not ESPN event id),
- * so the cron can persist pens into the DB without already knowing the id. Same
- * scoreboard-resolution pattern as fetchMatchEvents → so it only works while the
- * match is still on ESPN's scoreboard (the ~1-day window persistMatchEvents also
- * lives in). Returns null if the match aged off, didn't go to pens, or ESPN is
- * down. The keyEvents shootout rows persist after full-time, so this is valid
- * for a just-finished match.
+ * so the cron can persist pens into the DB without already knowing the id.
+ * Resolves via resolveEspnEventId, which falls back to the DATED scoreboard —
+ * so it still finds a match that has aged off the LIVE board. That matters
+ * because the wc26 feed marks matches `finished` up to ~1h late, by which point
+ * the live board has dropped them; the dated board still has them (with the
+ * keyEvents shootout rows). Pass the kickoff so the dated lookup can try the
+ * match's UTC date and the prior day (ESPN's US-local date skew). Returns null
+ * if the match didn't go to pens or ESPN can't serve it.
  */
 export async function finalShootoutScore(
   home: string,
   away: string,
+  kickoff: Date,
 ): Promise<{ home: number; away: number } | null> {
   const wantHome = teamCodeOf(home);
   const wantAway = teamCodeOf(away);
   if (!wantHome || !wantAway) return null;
-  try {
-    const sb = (await getJson(`${SUMMARY_BASE}/scoreboard`)) as {
-      events?: Array<{
-        id?: string;
-        competitions?: Array<{
-          competitors?: Array<{ homeAway: string; team?: { displayName?: string } }>;
-        }>;
-      }>;
-    };
-    for (const e of sb.events ?? []) {
-      const c = e.competitions?.[0]?.competitors ?? [];
-      const h = c.find((x) => x.homeAway === "home")?.team?.displayName;
-      const a = c.find((x) => x.homeAway === "away")?.team?.displayName;
-      if (
-        e.id &&
-        teamCodeOf(h ?? "") === wantHome &&
-        teamCodeOf(a ?? "") === wantAway
-      ) {
-        return liveShootoutScore(e.id);
-      }
-    }
-    return null; // aged off the scoreboard
-  } catch {
-    return null;
-  }
+  const eventId = await resolveEspnEventId(wantHome, wantAway, kickoff);
+  if (!eventId) return null;
+  return liveShootoutScore(eventId);
 }
 
 /** Map ESPN keyEvents → our goal/card timeline. Shared by events + gamecast. */

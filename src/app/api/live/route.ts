@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { getLiveMatches } from "@/lib/matches/queries";
 import { teamCodeOf } from "@/lib/football/team-ids";
 import { liveShootoutScore } from "@/lib/football/espn";
@@ -39,9 +41,32 @@ interface LiveMatch {
 // window here made the score visibly trail the goals — France 1-0 while two
 // goals were already listed). All clients share this one fetch → ~6 ESPN
 // hits/min total regardless of how many people are watching.
-export const revalidate = 10; // shared server cache window
+// No route-level `revalidate`: the shared cache lives on the ESPN fetch itself
+// (`next: { revalidate: 10 }` in GET), so N viewers still cause ≤1 upstream
+// fetch/10s. Leaving the route uncached lets the mock file (and a stale-feed
+// fix) take effect on the next poll instead of waiting out a route cache.
+export const dynamic = "force-dynamic";
+
+// ponytail: local-only pens debugging. When LIVE_MOCK=1, /api/live returns the
+// match in scratchpad/live-mock.json (ESPN shape) so you can hand-step the
+// shootout score and watch the real client overlay (card/field-hero) update —
+// without a real ESPN match. Off in prod (env unset). Edit the JSON, the 20s
+// poll picks it up. Drop after debugging.
+async function mockMatch(): Promise<LiveMatch | null> {
+  if (process.env.LIVE_MOCK !== "1") return null;
+  try {
+    const raw = await readFile(
+      join(process.cwd(), "scratchpad", "live-mock.json"),
+      "utf8",
+    );
+    return JSON.parse(raw) as LiveMatch;
+  } catch {
+    return null; // no file yet → no mock
+  }
+}
 
 export async function GET() {
+  const mock = await mockMatch();
   try {
     const res = await fetch(ESPN, {
       next: { revalidate: 10 },
@@ -122,9 +147,13 @@ export async function GET() {
         matchId,
       });
     }
-    return NextResponse.json({ matches });
+    if (mock) matches.push(mock);
+    return NextResponse.json(
+      { matches },
+      mock ? { headers: { "Cache-Control": "no-store" } } : undefined,
+    );
   } catch {
-    // Fail soft: no overlay, page falls back to DB scores.
-    return NextResponse.json({ matches: [] });
+    // Fail soft: no overlay, page falls back to DB scores (still serve the mock).
+    return NextResponse.json({ matches: mock ? [mock] : [] });
   }
 }

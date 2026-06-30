@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { matches } from "@/db/schema";
+import { matches, predictions } from "@/db/schema";
 import { getFootballProvider } from "./index";
 import { fetchMatchGamecast, finalShootoutScore } from "./espn";
 
@@ -206,6 +206,7 @@ export async function backfillPensFromEspn(): Promise<number> {
       id: matches.id,
       homeTeam: matches.homeTeam,
       awayTeam: matches.awayTeam,
+      kickoffUtc: matches.kickoffUtc,
     })
     .from(matches)
     .where(
@@ -220,12 +221,27 @@ export async function backfillPensFromEspn(): Promise<number> {
 
   let filled = 0;
   for (const m of pending) {
-    const pens = await finalShootoutScore(m.homeTeam, m.awayTeam);
+    const pens = await finalShootoutScore(
+      m.homeTeam,
+      m.awayTeam,
+      new Date(m.kickoffUtc),
+    );
     if (!pens) continue; // no shootout, aged off, or ESPN down — retry next run
     await db
       .update(matches)
       .set({ wentToPens: true, pensHome: pens.home, pensAway: pens.away })
       .where(eq(matches.id, m.id));
+    // If this match was ALREADY graded (pens arrived after the first grade, e.g.
+    // ESPN was down on the finish tick), grading is idempotent on
+    // points_awarded IS NULL and would skip it — so the pens bonus never lands.
+    // Clear this match's awarded points so the next gradeFinishedMatches re-scores
+    // them WITH the bonus. No-op for the normal case (pens saved before grading,
+    // points_awarded already null). recomputeLeagueStandings re-sums from scratch,
+    // so a transient clear can't lose points.
+    await db
+      .update(predictions)
+      .set({ pointsAwarded: null })
+      .where(eq(predictions.matchId, m.id));
     filled++;
   }
   return filled;
