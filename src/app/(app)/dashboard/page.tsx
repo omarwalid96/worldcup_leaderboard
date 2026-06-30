@@ -6,6 +6,7 @@ import { MatchCard } from "@/components/match/match-card";
 import { LeagueLeaders } from "@/components/leaderboard/league-leaders";
 import { SponsorsGallery } from "@/components/sponsors/sponsors-gallery";
 import { AiSummaryCard } from "@/components/summary/ai-summary-card";
+import { PaperRollBanners } from "@/components/layout/paper-roll-banners";
 import { requireProfile } from "@/lib/auth/session";
 import { getPredictableMatches } from "@/lib/matches/queries";
 import { getMainLeagueLeaders } from "@/lib/leaderboard/queries";
@@ -33,6 +34,9 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Party paper-roll banners that drop from the top on the home page. */}
+      <PaperRollBanners />
+
       <div>
         <p className="text-sm text-muted-foreground">Welcome back,</p>
         <h1 className="text-2xl font-bold tracking-tight">{profile.displayName}</h1>
