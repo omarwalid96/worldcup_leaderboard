@@ -5,9 +5,15 @@
  * small extra delay via inline animationDelay so they release a beat apart.
  * ponytail: no JS, no lib — a div with vertical text + the drop keyframe.
  */
-const MESSAGE = "weedo top — wel ba2y kantalop 🐐🔥";
-
-function Roll({ side, delay }: { side: "left" | "right"; delay: string }) {
+function Roll({
+  side,
+  delay,
+  message,
+}: {
+  side: "left" | "right";
+  delay: string;
+  message: string;
+}) {
   return (
     <div
       aria-hidden
@@ -28,18 +34,19 @@ function Roll({ side, delay }: { side: "left" | "right"; delay: string }) {
           className="font-display text-xs tracking-widest text-gold whitespace-nowrap"
           style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
         >
-          {MESSAGE}
+          {message}
         </span>
       </div>
     </div>
   );
 }
 
-export function PaperRollBanners() {
+export function PaperRollBanners({ name = "weedo" }: { name?: string }) {
+  const message = `${name} top — wel ba2y kantalop 🐐🔥`;
   return (
     <>
-      <Roll side="left" delay="0.1s" />
-      <Roll side="right" delay="0.35s" />
+      <Roll side="left" delay="0.1s" message={message} />
+      <Roll side="right" delay="0.35s" message={message} />
     </>
   );
 }

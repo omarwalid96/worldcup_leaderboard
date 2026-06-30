@@ -9,6 +9,7 @@ import { TeamHype } from "@/components/match/team-hype";
 import { LiveIsland } from "@/components/match/live-island";
 import { getTodaysTeamMatch } from "@/lib/matches/team-hype";
 import { getNextKickoff } from "@/lib/matches/queries";
+import { getMainLeagueLeaders } from "@/lib/leaderboard/queries";
 import { NativeInit } from "@/components/native-init";
 import { PerfOverlay } from "@/components/perf/perf-overlay";
 import { time, getTimings } from "@/lib/perf/timing";
@@ -35,11 +36,15 @@ export default async function AppLayout({
 }) {
   const serverStartMs = performance.now();
   const profile = await time("layout: auth + profile", () => requireProfile());
-  const [egyptMatch, brazilMatch, nextKickoff] = await Promise.all([
+  const [egyptMatch, brazilMatch, nextKickoff, leaders] = await Promise.all([
     time("layout: egypt hype", () => getTodaysTeamMatch("egypt")),
     time("layout: brazil hype", () => getTodaysTeamMatch("brazil")),
     time("layout: next kickoff", () => getNextKickoff()),
+    time("layout: leaders", () => getMainLeagueLeaders()),
   ]);
+  // The "weedo top" hype banner shows only while the viewer is the league #1.
+  const viewerIsTop =
+    leaders?.leaders.some((l) => l.userId === profile.id) ?? false;
 
   return (
     <div className="bg-pitch min-h-dvh">
@@ -62,8 +67,8 @@ export default async function AppLayout({
         </div>
       </header>
 
-      {/* Always-on scrolling hype billboard under the bar. */}
-      <HypeBanner />
+      {/* Scrolling hype billboard — only while the viewer is league #1. */}
+      {viewerIsTop && <HypeBanner name={profile.displayName} />}
 
       {/* Google-Sports-style live pill — auto-shows under the bar when a match
           is in play, hidden otherwise. Self-contained client component. */}

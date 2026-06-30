@@ -32,10 +32,15 @@ export default async function DashboardPage() {
       ])
     : [[], null];
 
+  // The "weedo top" party decorations only show while the viewer is actually
+  // the league #1 (or tied for it). Drop below first → they disappear.
+  const viewerIsTop =
+    leaders?.leaders.some((l) => l.userId === profile.id) ?? false;
+
   return (
     <div className="flex flex-col gap-6">
-      {/* Party paper-roll banners that drop from the top on the home page. */}
-      <PaperRollBanners />
+      {/* Party paper-roll banners — only while the viewer is league #1. */}
+      {viewerIsTop && <PaperRollBanners name={profile.displayName} />}
 
       <div>
         <p className="text-sm text-muted-foreground">Welcome back,</p>
