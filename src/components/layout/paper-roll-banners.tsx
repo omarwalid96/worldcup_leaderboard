@@ -11,10 +11,15 @@ function Roll({ side, delay }: { side: "left" | "right"; delay: string }) {
   return (
     <div
       aria-hidden
-      className={`animate-paper-drop pointer-events-none fixed top-0 z-30 ${
+      className={`animate-paper-drop pointer-events-none fixed z-30 ${
         side === "left" ? "left-2" : "right-2"
       }`}
-      style={{ animationDelay: delay }}
+      // Start below the sticky header (h-14) + the hype banner, plus the iOS
+      // safe-area inset, so the rolls hang under the top bars, not over them.
+      style={{
+        animationDelay: delay,
+        top: "calc(env(safe-area-inset-top) + 5.5rem)",
+      }}
     >
       {/* the little roll cap at the very top */}
       <div className="mx-auto h-2 w-10 rounded-b-sm bg-gold/70 shadow-md" />
