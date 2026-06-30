@@ -139,8 +139,11 @@ export function MatchCard({
         <TeamRow name={match.awayTeam} code={match.awayCode} score={isUpcoming ? null : awayScore} emphasize={awayWon} />
       </div>
 
-      {/* Live penalty shootout score (only while ESPN reports one). */}
-      {isLive && live?.shootoutHome != null && live?.shootoutAway != null && (
+      {/* Penalty shootout score — show it whenever ESPN reports one, NOT only
+          while isLive. ESPN sets completed:true the instant the deciding kick
+          lands, which flips isLive→false; gating on isLive made the pens score
+          vanish at the exact climax of the shootout. */}
+      {live?.shootoutHome != null && live?.shootoutAway != null && (
         <div className="mt-2 flex items-center justify-center gap-1.5 text-xs font-semibold text-live">
           🥅 Pens {live.shootoutHome}–{live.shootoutAway}
         </div>

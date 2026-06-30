@@ -37,9 +37,11 @@ export function FieldHero({
   const homeScore = live?.homeScore ?? dbHome ?? 0;
   const awayScore = live?.awayScore ?? dbAway ?? 0;
   const label = isLive && live ? livePhaseLabel(live) : (clockLabel ?? "Full time");
-  // Live shootout score, shown under the main score during penalties.
+  // Shootout score under the main score. Show it whenever ESPN reports one, NOT
+  // only while isLive — ESPN flips completed:true on the deciding kick, which
+  // would otherwise hide the score at the climax of the shootout.
   const pens =
-    isLive && live?.shootoutHome != null && live?.shootoutAway != null
+    live?.shootoutHome != null && live?.shootoutAway != null
       ? `${live.shootoutHome}–${live.shootoutAway}`
       : null;
 
