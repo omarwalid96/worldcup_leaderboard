@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Brand } from "@/components/brand";
 import { BottomNav, SideNav } from "@/components/layout/app-nav";
+import { HypeBanner } from "@/components/layout/hype-banner";
 import { UserMenu } from "@/components/layout/user-menu";
 import { requireProfile } from "@/lib/auth/session";
 import { SwRegister } from "@/components/sw-register";
@@ -60,6 +61,9 @@ export default async function AppLayout({
           />
         </div>
       </header>
+
+      {/* Always-on scrolling hype billboard under the bar. */}
+      <HypeBanner />
 
       {/* Google-Sports-style live pill — auto-shows under the bar when a match
           is in play, hidden otherwise. Self-contained client component. */}
