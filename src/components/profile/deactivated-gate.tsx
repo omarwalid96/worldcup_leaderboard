@@ -37,8 +37,7 @@ export function DeactivatedGate() {
       <CardContent className="flex flex-col items-center gap-4">
         <p className="text-sm text-muted-foreground">
           Your account is hidden from everyone and you can&apos;t make picks or
-          play games. Nothing was deleted — your history is safe. Activate to
-          come back.
+          play games. You can activate back anytime to come back.
         </p>
         <Button onClick={activate} disabled={pending} className="h-11">
           {pending ? <Loader2 className="animate-spin" /> : <UserCheck />} Activate my

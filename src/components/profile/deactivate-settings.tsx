@@ -39,8 +39,7 @@ export function DeactivateSettings() {
       <CardContent className="flex flex-col gap-3">
         <p className="text-xs text-muted-foreground">
           Hides you from everyone (leaderboard, profile, challenges) and blocks
-          picks and games. Nothing is deleted — you can reactivate anytime by
-          logging back in.
+          picks and games. You can activate back anytime by logging back in.
         </p>
         {confirming ? (
           <div className="flex gap-2">
