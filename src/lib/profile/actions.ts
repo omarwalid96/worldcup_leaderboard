@@ -72,3 +72,35 @@ export async function updateQuote(quote: string): Promise<UpdateQuoteResult> {
   revalidatePath("/", "layout");
   return { ok: true };
 }
+
+/**
+ * Deactivate the current user's account: hides them from other members
+ * (leaderboard, public profile, challenge pickers) and, once logged in, they
+ * see only a reactivate screen. No data is deleted — reactivate clears it.
+ */
+export async function deactivateAccount(): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You must be signed in." };
+
+  await db
+    .update(profiles)
+    .set({ deactivatedAt: new Date() })
+    .where(eq(profiles.id, user.id));
+
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** Reactivate the current user's account (clears deactivatedAt). */
+export async function reactivateAccount(): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You must be signed in." };
+
+  await db
+    .update(profiles)
+    .set({ deactivatedAt: null })
+    .where(eq(profiles.id, user.id));
+
+  revalidatePath("/", "layout");
+  return { ok: true };
+}

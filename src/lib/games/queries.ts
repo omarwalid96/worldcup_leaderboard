@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { gameMatches, gameResults, profiles } from "@/db/schema";
 import { getGameDefinition } from "./registry";
@@ -191,7 +191,8 @@ export async function listOpponents(userId: string): Promise<PlayerInfo[]> {
       avatarUrl: profiles.avatarUrl,
     })
     .from(profiles)
-    .where(ne(profiles.id, userId))
+    // Deactivated members can't be challenged (hidden from everyone).
+    .where(and(ne(profiles.id, userId), isNull(profiles.deactivatedAt)))
     .orderBy(profiles.displayName);
   return rows;
 }

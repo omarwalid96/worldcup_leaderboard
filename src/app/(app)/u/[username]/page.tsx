@@ -56,7 +56,9 @@ export default async function UserProfilePage({
     getSessionProfile(),
   ]);
 
-  if (!profile) notFound();
+  // Deactivated users are hidden from everyone else (their own access is
+  // blocked at the layout, so only other members reach this page).
+  if (!profile || profile.deactivatedAt) notFound();
 
   const [
     stats,

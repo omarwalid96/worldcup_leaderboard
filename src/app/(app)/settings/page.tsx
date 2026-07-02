@@ -4,6 +4,7 @@ import { PushSettings } from "@/components/notifications/push-settings";
 import { AvatarUpload } from "@/components/avatar/avatar-upload";
 import { NameSettings } from "@/components/profile/name-settings";
 import { QuoteSettings } from "@/components/profile/quote-settings";
+import { DeactivateSettings } from "@/components/profile/deactivate-settings";
 import { env } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -68,6 +69,8 @@ export default async function SettingsPage() {
         initialSubscribed={initialSubscribed}
         initialPrefs={initialPrefs}
       />
+
+      <DeactivateSettings />
     </div>
   );
 }

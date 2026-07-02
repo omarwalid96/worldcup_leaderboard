@@ -57,6 +57,10 @@ export const profiles = pgTable("profiles", {
     .notNull()
     .default({ lockReminder: true, scoreHit: true, rankClimb: true, gameChallenge: true, nudge: true }),
   isAdmin: boolean("is_admin").notNull().default(false),
+  // Self-service deactivation: null = active, set = deactivated at that time.
+  // Hidden from other members; the user sees only a reactivate screen. No data
+  // is deleted. Reactivating clears this back to null.
+  deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

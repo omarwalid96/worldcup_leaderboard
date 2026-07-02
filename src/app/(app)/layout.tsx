@@ -13,6 +13,7 @@ import { getMainLeagueLeaders } from "@/lib/leaderboard/queries";
 import { NativeInit } from "@/components/native-init";
 import { PerfOverlay } from "@/components/perf/perf-overlay";
 import { time, getTimings } from "@/lib/perf/timing";
+import { DeactivatedGate } from "@/components/profile/deactivated-gate";
 
 /**
  * Renders AFTER {children}, so getTimings() includes the page's instrumented
@@ -36,6 +37,32 @@ export default async function AppLayout({
 }) {
   const serverStartMs = performance.now();
   const profile = await time("layout: auth + profile", () => requireProfile());
+
+  // Deactivated users can't access any app page — only a reactivate screen.
+  // No nav, no children queries; keep the header so they can log out.
+  if (profile.deactivatedAt) {
+    return (
+      <div className="bg-pitch min-h-dvh">
+        <header
+          className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-lg"
+          style={{ paddingTop: "env(safe-area-inset-top)" }}
+        >
+          <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
+            <Brand />
+            <UserMenu
+              displayName={profile.displayName}
+              username={profile.username}
+              avatarUrl={profile.avatarUrl}
+            />
+          </div>
+        </header>
+        <main className="mx-auto max-w-md px-4 py-16">
+          <DeactivatedGate />
+        </main>
+      </div>
+    );
+  }
+
   const [egyptMatch, brazilMatch, nextKickoff, leaders] = await Promise.all([
     time("layout: egypt hype", () => getTodaysTeamMatch("egypt")),
     time("layout: brazil hype", () => getTodaysTeamMatch("brazil")),

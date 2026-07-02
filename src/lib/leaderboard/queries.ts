@@ -1,5 +1,5 @@
 import "server-only";
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { standings, profiles, leagues, leagueMembers } from "@/db/schema";
 
@@ -59,7 +59,9 @@ export async function getLeaderboard(
     })
     .from(standings)
     .innerJoin(profiles, eq(profiles.id, standings.userId))
-    .where(eq(standings.leagueId, leagueId))
+    // Deactivated members are hidden from the leaderboard (their standings row
+    // stays in the DB; it reappears on reactivation).
+    .where(and(eq(standings.leagueId, leagueId), isNull(profiles.deactivatedAt)))
     // Order by points (the source of truth), not stored rank — a not-yet-ranked
     // row (rank=0, e.g. a newly added member) must never sort above everyone.
     .orderBy(desc(standings.totalPoints), asc(profiles.displayName));

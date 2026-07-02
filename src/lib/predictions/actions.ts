@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { matches, predictions } from "@/db/schema";
 import { getCurrentUser } from "@/lib/supabase/server";
+import { getSessionProfile } from "@/lib/auth/session";
 
 const schema = z.object({
   matchId: z.string().uuid(),
@@ -42,6 +43,13 @@ export async function savePrediction(input: {
 }): Promise<SavePredictionResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You must be signed in." };
+
+  // Deactivated accounts can't make or change picks (their points must stand
+  // still while deactivated). The UI is already blocked; this is the real gate.
+  const me = await getSessionProfile();
+  if (me?.deactivatedAt) {
+    return { ok: false, error: "Your account is deactivated. Reactivate to make picks." };
+  }
 
   const parsed = schema.safeParse({
     matchId: input.matchId,
