@@ -55,12 +55,8 @@ export async function runPipeline(): Promise<PipelineResult> {
   `);
   const inLiveWindow = (windowRows as unknown as unknown[]).length > 0;
   if (!inLiveWindow) {
-    await recordCronRun("sync", {
-      scoresUpdated: 0,
-      statusChanges: 0,
-      markedLive: 0,
-      graded: 0,
-    });
+    // Quiet tick: just bump the single heartbeat row (no append, no DDL).
+    await recordCronRun("sync", { window: false }, true);
     return {
       ok: true,
       sync: {

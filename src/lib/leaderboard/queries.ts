@@ -1,7 +1,9 @@
 import "server-only";
+import { unstable_cache } from "next/cache";
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { standings, profiles, leagues, leagueMembers } from "@/db/schema";
+import { LIVE_TAG } from "@/lib/cache/tags";
 
 export interface LeaderboardRow {
   userId: string;
@@ -101,17 +103,27 @@ export interface LeagueLeaders {
  * The current #1 of the Main League — all users tied for the top score (dense
  * rank 1). Returns null until someone has scored (top points > 0), so we don't
  * crown anyone at 0–0.
+ *
+ * Cached: this runs in the app layout on EVERY page nav (and every 5-min
+ * LiveRefresher tick) for every user, and leaders only change when the cron
+ * grades a match — which busts LIVE_TAG. So the 60s TTL just bounds staleness
+ * while the cron is idle. Removes the standings/profiles/leagues joins from the
+ * per-request hot path (the Vercel Active-CPU burn — see memory).
  */
-export async function getMainLeagueLeaders(): Promise<LeagueLeaders | null> {
-  const data = await getMainLeaderboard();
-  if (!data || data.rows.length === 0) return null;
+export const getMainLeagueLeaders = unstable_cache(
+  async (): Promise<LeagueLeaders | null> => {
+    const data = await getMainLeaderboard();
+    if (!data || data.rows.length === 0) return null;
 
-  const top = Math.max(...data.rows.map((r) => r.totalPoints));
-  if (top <= 0) return null;
+    const top = Math.max(...data.rows.map((r) => r.totalPoints));
+    if (top <= 0) return null;
 
-  return {
-    leagueName: data.leagueName,
-    points: top,
-    leaders: data.rows.filter((r) => r.totalPoints === top),
-  };
-}
+    return {
+      leagueName: data.leagueName,
+      points: top,
+      leaders: data.rows.filter((r) => r.totalPoints === top),
+    };
+  },
+  ["main-league-leaders"],
+  { revalidate: 60, tags: [LIVE_TAG] },
+);
