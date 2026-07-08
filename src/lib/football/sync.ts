@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { matches, predictions } from "@/db/schema";
 import { getFootballProvider } from "./index";
 import { fetchMatchGamecast, finalShootoutScore } from "./espn";
+import { teamCode } from "./teams";
 
 /** A score/status change worth a league-wide push (goal, kickoff, full time). */
 export interface MatchAlert {
@@ -49,6 +50,8 @@ export async function syncMatches(): Promise<SyncSummary> {
       status: matches.status,
       homeTeam: matches.homeTeam,
       awayTeam: matches.awayTeam,
+      homeCode: matches.homeCode,
+      awayCode: matches.awayCode,
       homeScore: matches.homeScore,
       awayScore: matches.awayScore,
       kickoffUtc: matches.kickoffUtc,
@@ -62,6 +65,20 @@ export async function syncMatches(): Promise<SyncSummary> {
   for (const f of fixtures) {
     const cur = byExt.get(f.externalId);
     if (!cur) continue; // new fixtures are introduced by the seed, not the sync
+
+    // Backfill a missing flag code from the (already-resolved) team name.
+    // Knockout rows that resolved from TBD kept null codes; a null code with a
+    // known name is always fixable and safe to fix even on a finished match.
+    const homeCodeFix = cur.homeCode ?? teamCode(cur.homeTeam);
+    const awayCodeFix = cur.awayCode ?? teamCode(cur.awayTeam);
+    const codesChanged =
+      homeCodeFix !== cur.homeCode || awayCodeFix !== cur.awayCode;
+    if (codesChanged) {
+      await db
+        .update(matches)
+        .set({ homeCode: homeCodeFix, awayCode: awayCodeFix })
+        .where(eq(matches.id, cur.id));
+    }
 
     // Never downgrade a finished match (protects against a flaky feed blip).
     if (cur.status === "finished") continue;
@@ -99,7 +116,14 @@ export async function syncMatches(): Promise<SyncSummary> {
           status: f.status,
           ...(kickoffChanged ? { kickoffUtc: newKickoff } : {}),
           ...(teamsChanged
-            ? { homeTeam: f.homeTeam, awayTeam: f.awayTeam }
+            ? {
+                homeTeam: f.homeTeam,
+                awayTeam: f.awayTeam,
+                // Adopt the codes too, else the flags don't render for the
+                // resolved knockout teams.
+                homeCode: f.homeCode,
+                awayCode: f.awayCode,
+              }
             : {}),
           lastSyncedAt: new Date(),
         })
